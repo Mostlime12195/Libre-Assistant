@@ -1,0 +1,472 @@
+/* Color variables (light + dark) — semantic tokens only.
+   Purpose: Drop these into your CSS (e.g., at the top of a globals file) and reference
+   the semantic tokens in your components. The comments next to each variable explain
+   what it's intended to be used for.
+
+   Notes:
+   - Contrast-conscious: text colors are full-strength; primary colors include hover/dark variants
+   - Light mode: refreshing and bright but comfortable for long reading
+   - Dark mode: deep, colorful, still readable; primary keeps visual pop against dark surfaces
+*/
+
+:root {
+  /* ----------------- LIGHT THEME (warmer + grayer) ----------------- */
+  /* Page & surfaces */
+  --bg: #ebe7e2; /* soft, neutral gray canvas */
+  --surface: #dbd4d1; /* cards, panels, app surfaces */
+  --elevated-surface: #e6dfdc; /* slightly tinted surface for grouped panels/inputs */
+
+  /* Text */
+  --text-primary: #3a2119; /* strong, neutral dark (gray-black) */
+  --text-secondary: #63564b; /* neutral secondary */
+  --text-muted: #80716b; /* placeholders, disabled labels */
+
+  /* Borders & dividers */
+  --border: #cabdb6; /* clean gray divider */
+  --muted-border: #e6e7e8; /* very light grouping divider */
+
+  /* Primary (brand / main CTA) — warm, readable */
+  --primary: #c04a2c; /* warm burnt-sienna (use sparingly for CTAs) */
+  --primary-foreground: #ffffff; /* text/icon color when placed on --primary */
+  --primary-600: #9b3d23; /* hover / active */
+  --primary-800: #6f2a18; /* pressed/strong state */
+
+  /* Secondary / supporting accent */
+  --secondary: #b38b3b; /* desaturated warm mustard */
+  --secondary-600: #8f6d2e; /* hover/darker */
+
+  /* Accent colors (use sparingly for highlights) */
+  --accent-warm: #f59e0b; /* lively warm accent */
+  --accent-soft: #d6a95a; /* softer warm highlight */
+
+  /* Feedback / semantic statuses */
+  --success: #15803d; /* success states (slightly muted green) */
+  --warning: #b45309; /* warm warning */
+  --danger: #b91c1c; /* error (stronger, desaturated red) */
+  --info: #0f766e; /* muted teal/info */
+
+  /* Shadows & focus rings */
+  --shadow-elev: rgba(2, 6, 23, 0.06); /* subtle soft shadow */
+  --focus-ring: rgba(
+    192,
+    74,
+    44,
+    0.12
+  ); /* warmer focus ring tinted with primary */
+
+  /* Component-specific variables */
+  --bg-primary: var(--surface);
+  --bg-secondary: var(--elevated-surface);
+  --bg-tertiary: var(--muted-border);
+
+  --btn-hover: hsla(16, 13%, 72%, 0.5);
+  --btn-hover-2: hsla(17, 100%, 96%, 0.6);
+
+  /* Parameter config panel */
+  --panel-bg: var(--bg-primary);
+  --panel-input-bg: var(--bg-input);
+  --tooltip-bg: var(--elevated-surface);
+  --tooltip-text: var(--text-primary);
+
+
+  /* Message form colors */
+  --bg-input: var(--elevated-surface);
+  --bg-sidebar: var(--surface);
+  --text-placeholder: var(--text-muted);
+  --shadow-default: 0 2px 8px var(--shadow-elev);
+  --btn-model-selector-bg: var(--muted-border);
+  --btn-model-selector-text: var(--text-primary);
+  --btn-model-selector-hover-bg: var(--border);
+  --btn-send-bg: var(--primary);
+  --btn-send-hover-bg: var(--primary-600);
+  --btn-send-disabled-bg: var(--border);
+  --btn-send-text: var(--primary-foreground);
+  --popover-bg: var(--bg-primary);
+  --popover-border: var(--border);
+  --popover-shadow: 0 4px 16px var(--shadow-elev);
+  --popover-header-text: var(--text-primary);
+  --popover-list-item-bg-hover: var(--border);
+  --popover-list-item-text: var(--text-primary);
+  --popover-list-item-selected-bg: var(--border);
+  --popover-list-item-selected-text: var(--text-primary);
+
+  /* Welcome overlay */
+  --text-light: var(--text-primary);
+  --text-dark: var(--text-primary);
+
+  /* App-specific colors */
+  --color-bubble-user-bg: var(--primary);
+  --color-bubble-user-text: var(--primary-foreground);
+
+  /* Spacing */
+  --spacing-4: 4px;
+  --spacing-8: 8px;
+  --spacing-12: 12px;
+  --spacing-16: 16px;
+  --spacing-24: 24px;
+  --section-gap: 160px;
+
+  /* Borders */
+  --border-radius: 12px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 var(--shadow-elev);
+  --shadow-md:
+    0 4px 6px -1px var(--shadow-elev), 0 2px 4px -1px var(--shadow-elev);
+  --shadow-lg:
+    0 10px 15px -3px var(--shadow-elev), 0 4px 6px -2px var(--shadow-elev);
+  --shadow-xl:
+    0 20px 25px -5px var(--shadow-elev), 0 10px 10px -5px var(--shadow-elev);
+
+  /* Fonts */
+  --font:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+
+  scrollbar-color: #b4ab9e transparent;
+}
+
+/* ----------------- DARK THEME (deep, warm, grayer) ----------------- */
+.dark {
+  color-scheme: dark;
+
+  /* Page & surfaces */
+  --bg: #1c1919; /* deep neutral background (very dark gray) */
+  --surface: #131110; /* main surface for cards/panels */
+  --elevated-surface: #22201e; /* slightly lighter elevated surface */
+
+  /* Text */
+  --text-primary: #e6e6e7; /* light, neutral text */
+  --text-secondary: #a3a3a6; /* desaturated secondary */
+  --text-muted: #737373; /* muted labels */
+
+  /* Borders & dividers */
+  --border: rgba(230, 230, 230, 0.06); /* subtle divider on dark */
+  --muted-border: rgba(230, 230, 230, 0.04);
+
+  /* Primary (warm, visible on dark surfaces) */
+  --primary: #e06a3a; /* warm orange that pops on dark */
+  --primary-foreground: #ffffff; /* always white on dark primary */
+  --primary-600: #b34e2b; /* hover/darker */
+  --primary-800: #7a321d; /* pressed/strong */
+
+  /* Secondary supporting accent */
+  --secondary: #9e7a3a; /* muted golden-olive */
+  --secondary-600: #7f6130;
+
+  /* Accents & feedback */
+  --accent-warm: #f59e0b; /* warm accent */
+  --accent-soft: #f3dfa6; /* softer warm highlight */
+
+  --success: #34d399;
+  --warning: #f59e0b;
+  --danger: #f87171;
+  --info: #60f0f0;
+
+  /* Shadows & focus */
+  --shadow-elev: rgba(2, 6, 23, 0.2);
+  --focus-ring: rgba(224, 106, 58, 0.14); /* warmer focus */
+
+  /* Component-specific variables for dark mode */
+  --bg-primary: var(--surface);
+  --bg-secondary: var(--elevated-surface);
+  --bg-tertiary: var(--muted-border);
+
+  --btn-hover: hsla(15, 6%, 27%, 0.4);
+  --btn-hover-2: hsla(15, 6%, 27%, 0.4);
+
+  /* Parameter config panel */
+  --panel-bg: var(--bg-primary);
+  --panel-input-bg: var(--bg-input);
+  --tooltip-bg: var(--elevated-surface);
+  --tooltip-text: var(--text-primary);
+
+
+  /* Chat panel colors for dark mode */
+  --text-primary-dark: var(--text-primary);
+  --text-secondary-dark: var(--text-secondary);
+  --reasoning-border-dark: var(--border);
+
+  /* Message form dark colors */
+  --bg-sidebar: var(--surface);
+  --bg-input: var(--elevated-surface);
+  --text-placeholder: var(--text-muted);
+  --shadow-default: 0 4px 16px var(--shadow-elev);
+  --btn-model-selector-bg: var(--muted-border);
+  --btn-model-selector-text: var(--text-primary);
+  --btn-model-selector-hover-bg: var(--border);
+  --btn-send-bg: var(--primary);
+  --btn-send-hover-bg: var(--primary-600);
+  --btn-send-disabled-bg: var(--border);
+  --popover-bg: var(--surface);
+  --popover-border: var(--border);
+  --popover-shadow: 0 8px 30px var(--shadow-elev);
+  --popover-list-item-bg-hover: var(--muted-border);
+  --popover-list-item-text: var(--text-primary);
+  --popover-list-item-selected-bg: var(--border);
+  --popover-list-item-selected-text: var(--text-primary);
+
+  scrollbar-color: #54514d transparent;
+}
+
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  font-weight: normal;
+}
+
+
+body {
+  min-height: 100dvh;
+  height: 100dvh;
+  width: 100vw;
+  margin: 0;
+  padding: 0;
+  color: var(--text-primary);
+  background: var(--bg);
+  transition:
+    color 0.5s,
+    background-color 0.5s;
+  line-height: 1.6;
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Oxygen,
+    Ubuntu,
+    Cantarell,
+    "Fira Sans",
+    "Droid Sans",
+    "Helvetica Neue",
+    sans-serif;
+  font-size: 15px;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+}
+
+/* Reka UI Dropdown Menu Styles */
+.popover-dropdown {
+  background-color: var(--popover-bg);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--popover-border);
+}
+
+.model-selector-dropdown {
+  animation: popIn 0.2s ease-out forwards;
+  min-width: 300px;
+  max-width: 320px;
+  background: var(--popover-bg);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--popover-border);
+  z-index: 1001;
+}
+
+.dropdown-scroll-container {
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.dropdown-label {
+  padding: 6px 10px;
+  font-weight: 400;
+  color: var(--popover-list-item-text);
+  font-size: 0.9rem;
+}
+
+.model-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 4px 8px;
+  text-align: left;
+  background: none;
+  color: var(--popover-list-item-text);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+  font-size: 0.95rem;
+  border-radius: 6px;
+  margin-bottom: 2px;
+  border: none;
+}
+
+.model-list-item:hover {
+  background-color: var(--btn-hover);
+}
+
+.model-list-item.selected {
+  background-color: var(--btn-hover);
+  color: var(--popover-list-item-selected-text);
+  font-weight: 500;
+}
+
+.model-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.model-info strong {
+  display: block;
+  font-size: 1em;
+}
+
+.model-description {
+  font-size: 0.8em;
+  opacity: 0.7;
+  text-align: left;
+}
+
+.category-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  color: var(--popover-list-item-text);
+  padding: 8px 10px;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  border-radius: 6px;
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+}
+
+.category-item:hover {
+  background-color: var(--btn-hover);
+}
+
+.submenu-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.subcategory-content {
+  animation: popIn 0.2s ease-out forwards;
+  min-width: 280px;
+  background: var(--popover-bg);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--popover-border);
+  z-index: 1002;
+  padding: 6px;
+}
+
+/* Animation for dropdown */
+@keyframes popIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.95) translateY(-5px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Top bar styling */
+.top-bar {
+  height: 60px;
+  background-color: var(--bg);
+  width: 100%;
+  z-index: 1000;
+  flex-shrink: 0;
+  border-bottom: 1px solid transparent;
+  transition: border-bottom 0.2s ease;
+}
+
+.top-bar.with-border {
+  border-bottom: 1px solid var(--border);
+}
+
+.top-bar-content {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  height: 100%;
+  padding: 0 16px;
+  gap: 12px;
+}
+
+/* --- SIDEBAR TOGGLE --- */
+.sidebar-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  transition: background 0.18s;
+}
+
+.sidebar-toggle:hover {
+  background: var(--btn-hover);
+}
+
+/* --- MODEL SELECTOR --- */
+.model-selector-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--btn-model-selector-text);
+  background: none;
+  border: none;
+  border-radius: 8px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.18s;
+}
+
+.model-selector-btn:hover {
+  background: var(--btn-hover);
+}
+
+.model-name-display {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dropdown-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+/* Icon styling */
+.icon {
+  color: var(--text-primary);
+  flex-shrink: 0;
+}

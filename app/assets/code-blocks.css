@@ -1,0 +1,205 @@
+/* Code block and inline code styles */
+:root {
+  /* Default code block colors (light mode) */
+  --code-bg: #fefbec; /* Using Atelier Dune light background */
+  --code-text: #6e6b5e; /* Using Atelier Dune light text color */
+  --code-action-text: #7d7a68; /* Atelier Dune tag color */
+  --code-action-hover-bg: rgba(166, 162, 140, 0.1); /* Atelier Dune selection color */
+  --code-action-hover-text: #6e6b5e;
+  --code-comment: #999580; /* Atelier Dune comment color */
+  --code-keyword: #b854d4; /* Atelier Dune keyword color */
+  --code-function: #6684e1; /* Atelier Dune function color */
+  --code-string: #60ac39; /* Atelier Dune string color */
+  --code-number: #b65611; /* Atelier Dune number color */
+  --code-variable: #d73737; /* Atelier Dune variable color */
+  --code-property: #6684e1; /* Atelier Dune property color */
+
+  --code-inline-bg: #e8e4cf; /* Lighter version of background */
+}
+
+.dark {
+  /* Code block adjustments for dark mode */
+  --code-bg: #201f1d; /* Atelier Dune dark background */
+  --code-text: #a6a28c; /* Atelier Dune dark text color */
+  --code-action-text: #999580; /* Atelier Dune tag color */
+  --code-action-hover-bg: rgba(110, 107, 94, 0.03); /* Atelier Dune selection color */
+  --code-action-hover-text: #a6a28c;
+  --code-comment: #7d7a68; /* Atelier Dune comment color */
+  --code-keyword: #b854d4; /* Atelier Dune keyword color */
+  --code-function: #6684e1; /* Atelier Dune function color */
+  --code-string: #60ac39; /* Atelier Dune string color */
+  --code-number: #b65611; /* Atelier Dune number color */
+  --code-variable: #d73737; /* Atelier Dune variable color */
+  --code-property: #6684e1; /* Atelier Dune property color */
+
+  --code-inline-bg: #2d2d29; /* Darker version of background */
+}
+
+/* Code block wrapper */
+.markdown-content .code-block-wrapper {
+  background-color: var(--code-bg);
+  border-radius: 8px;
+  margin: 1em 0;
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
+  transition: all 0.3s cubic-bezier(0.4, 1, 0.6, 1);
+  position: relative;
+}
+
+/* Code block header */
+.code-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 8px 8px 16px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: var(--code-bg);
+  border-radius: 8px 8px 0 0;
+  min-height: 40px;
+}
+
+/* Language label */
+.code-language {
+  font-family: monospace;
+  font-size: 0.85em;
+  color: var(--code-action-text);
+  text-transform: lowercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Action buttons container */
+.code-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* Action buttons */
+.code-action-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--code-action-text);
+  padding: 4px 8px;
+  font-size: 0.8em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.code-action-button:hover {
+  background-color: var(--code-action-hover-bg);
+  color: var(--code-action-hover-text);
+}
+
+.code-action-button.copied {
+  color: #3fb950;
+}
+
+.code-action-button svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Code block pre/code elements */
+.code-block-wrapper pre {
+  margin: 0;
+  padding: 0;
+  overflow-x: auto;
+  border-radius: 0 0 8px 8px;
+}
+
+.code-block-wrapper pre code.hljs {
+  display: block;
+  padding: 16px;
+  background: transparent;
+  color: var(--code-text);
+  font-size: 0.9em;
+  line-height: 1.6;
+}
+
+/* Inline code */
+.markdown-content code:not(.hljs) {
+  background-color: var(--code-inline-bg);
+  color: var(--code-text);
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  font-size: 0.85em;
+}
+
+/* Syntax highlighting colors - Atelier Dune themes */
+.markdown-content pre code.hljs {
+  background: var(--code-bg);
+  color: var(--code-text);
+}
+
+.markdown-content pre code.hljs .hljs-comment,
+.markdown-content pre code.hljs .hljs-quote {
+  color: var(--code-comment);
+}
+
+.markdown-content pre code.hljs .hljs-meta,
+.markdown-content pre code.hljs .hljs-meta .hljs-keyword,
+.markdown-content pre code.hljs .hljs-meta .hljs-string {
+  color: #d43552; /* Atelier Dune meta color */
+}
+
+.markdown-content pre code.hljs .hljs-keyword,
+.markdown-content pre code.hljs .hljs-selector-tag,
+.markdown-content pre code.hljs .hljs-title.class_,
+.markdown-content pre code.hljs .hljs-literal,
+.markdown-content pre code.hljs .hljs-type,
+.markdown-content pre code.hljs .hljs-attribute,
+.markdown-content pre code.hljs .hljs-doctag {
+  color: var(--code-keyword);
+}
+
+.markdown-content pre code.hljs .hljs-title,
+.markdown-content pre code.hljs .hljs-title.class_.inherited__,
+.markdown-content pre code.hljs .hljs-function .hljs-title {
+  color: var(--code-function);
+}
+
+.markdown-content pre code.hljs .hljs-string,
+.markdown-content pre code.hljs .hljs-regexp,
+.markdown-content pre code.hljs .hljs-addition,
+.markdown-content pre code.hljs .hljs-variable,
+.markdown-content pre code.hljs .hljs-template-variable,
+.markdown-content pre code.hljs .hljs-tag,
+.markdown-content pre code.hljs .hljs-name {
+  color: var(--code-string);
+}
+
+.markdown-content pre code.hljs .hljs-number,
+.markdown-content pre code.hljs .hljs-symbol,
+.markdown-content pre code.hljs .hljs-bullet,
+.markdown-content pre code.hljs .hljs-link {
+  color: var(--code-number);
+}
+
+.markdown-content pre code.hljs .hljs-built_in,
+.markdown-content pre code.hljs .hljs-template-tag,
+.markdown-content pre code.hljs .hljs-selector-id,
+.markdown-content pre code.hljs .hljs-selector-class,
+.markdown-content pre code.hljs .hljs-selector-attr,
+.markdown-content pre code.hljs .hljs-selector-pseudo {
+  color: #1fad83; /* Atelier Dune built-in color */
+}
