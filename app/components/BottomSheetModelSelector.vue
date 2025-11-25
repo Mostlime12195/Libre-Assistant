@@ -2,7 +2,7 @@
   <Motion
     v-if="isOpen"
     :initial="{ opacity: 0 }"
-    :animate="{ opacity: 0.5 }"
+    :animate="isClosing ? { opacity: 0} : { opacity: 0.5}"
     :exit="{ opacity: 0 }"
     :transition="{ duration: 0.3, ease: 'easeOut' }"
     class="backdrop"
@@ -11,10 +11,10 @@
 
   <Motion
     v-if="isOpen"
-    :initial="{ y: '100%' }"
-    :animate="isClosing ? { y: '100%' } : { y: '0%' }"
-    :exit="{ y: '100%' }"
-    :transition="{ type: 'tween', duration: 0.3, ease: 'easeOut' }"
+    :initial="{ y: '100%', opacity: 1 }"
+    :animate="isClosing ? { y: '100%'} : { y: '0%'}"
+    :exit="{ y: '100%', opacity: 0 }"
+    :transition="{ type: 'spring', stiffness: 300, damping: 25, mass: 0.4 }"
     :on-animation-complete="onAnimationComplete"
     class="bottom-sheet-container"
     @click.stop
@@ -52,7 +52,7 @@
         <Motion
           :initial="firstOpen && currentView === 'providers' ? { x: 0 } : (currentView === 'providers' ? { x: 0 } : { x: '-100%' })"
           :animate="currentView === 'providers' ? { x: 0 } : { x: '-100%' }"
-          :transition="{ type: 'tween', duration: 0.3, ease: 'easeOut' }"
+          :transition="{ type: 'spring', stiffness: 300, damping: 25 }"
           class="providers-page"
         >
           <div v-if="providers.length === 0" class="no-providers">
@@ -74,7 +74,7 @@
         <Motion
           :initial="firstOpen && currentView === 'models' ? { x: 0 } : (currentView === 'models' ? { x: 0 } : { x: '100%' })"
           :animate="currentView === 'models' ? { x: 0 } : { x: '100%' }"
-          :transition="{ type: 'tween', duration: 0.3, ease: 'easeOut' }"
+          :transition="{ type: 'spring', stiffness: 300, damping: 25 }"
           class="models-page"
         >
           <div
@@ -167,14 +167,6 @@ const goBackToProviders = () => {
   selectedProvider.value = null;
 };
 
-// Function to update dragY with animation when closing
-const animateToClose = () => {
-  // Update the initial state to animate to closed position
-  isClosing.value = true;
-  // The Motion component will handle the animation to y: '100%'
-  emit('close');
-};
-
 // Function to animate closing when backdrop is clicked
 const closeSheet = () => {
   isClosing.value = true;
@@ -198,6 +190,8 @@ const onAnimationComplete = () => {
   height: 100%;
   background: rgba(0, 0, 0, 1); /* Will be animated by Motion */
   z-index: 9998;
+  transform: translateZ(0); /* Force hardware acceleration */
+  backface-visibility: hidden; /* Improve rendering performance */
 }
 
 .bottom-sheet-container {
@@ -213,6 +207,8 @@ const onAnimationComplete = () => {
   display: flex;
   flex-direction: column;
   align-items: center;
+  transform: translateZ(0); /* Force hardware acceleration */
+  backface-visibility: hidden; /* Improve rendering performance */
 }
 
 .bottom-sheet {
@@ -332,6 +328,8 @@ const onAnimationComplete = () => {
   width: 100%;
   will-change: transform; /* Improve performance */
   /* Remove any default transitions that might interfere */
+  transform: translateZ(0); /* Force hardware acceleration */
+  backface-visibility: hidden; /* Improve rendering performance */
 }
 
 .content-container {
@@ -418,7 +416,7 @@ const onAnimationComplete = () => {
 }
 
 /* Mobile-specific adjustments */
-@media (max-width: 500px) {
+@media (max-width: 600px) {
   .bottom-sheet {
     max-height: 60vh;
   }

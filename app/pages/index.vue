@@ -170,7 +170,8 @@ useHead({
   width: 100%;
   position: relative;
   justify-content: center;
-  overflow-y: auto;     /* MOVE scroll here */
+  overflow-y: auto; 
+  scrollbar-gutter: stable both-edges;
 }
 
 /* Centered content column, no own scroll */

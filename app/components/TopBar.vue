@@ -206,7 +206,7 @@ const { width: windowWidth } = useWindowSize();
 
 // Computed property to check if we're on a mobile screen
 const isMobile = computed(() => {
-  return windowWidth.value < 500;
+  return windowWidth.value < 600;
 });
 
 // State for mobile bottom sheet

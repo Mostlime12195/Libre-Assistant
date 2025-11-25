@@ -22,9 +22,6 @@ const emit = defineEmits([
   "empty",
 ]);
 
-// Local state for search toggle
-const isSearchEnabled = ref(false);
-
 // Local state for reasoning effort
 const reasoningEffort = ref("default");
 
@@ -197,38 +194,6 @@ const isReasoningEnabled = computed(() => {
   return false;
 });
 
-// Computed property to check if the current model supports browser search
-const isBrowserSearchSupported = computed(() => {
-  if (!props.selectedModelId || !props.availableModels) return false;
-
-  // Helper function to find a model by ID, including nested models in categories
-  function findModelById(models, id) {
-    for (const model of models) {
-      if (model.id === id) {
-        return model;
-      }
-      if (model.models && Array.isArray(model.models)) {
-        const found = findModelById(model.models, id);
-        if (found) {
-          return found;
-        }
-      }
-    }
-    return null;
-  }
-
-  const selectedModel = findModelById(props.availableModels, props.selectedModelId);
-  return selectedModel && selectedModel.extra_functions && selectedModel.extra_functions.includes('browser_search');
-});
-
-// Watch the computed property and update the ref
-watch(
-  () => props.settingsManager?.settings?.parameter_config?.grounding,
-  (newValue) => {
-    isSearchEnabled.value = newValue || false;
-  },
-  { immediate: true }
-);
 
 // Watch the selected model and load the appropriate reasoning effort setting
 watch(
@@ -363,21 +328,6 @@ function setMessage(text) {
   inputMessage.value = text;
 }
 
-/**
- * Toggles the search functionality and updates the settings
- */
-function toggleSearch() {
-  isSearchEnabled.value = !isSearchEnabled.value;
-  // Update the grounding parameter in the settings manager
-  if (props.settingsManager) {
-    // Ensure parameter_config exists
-    if (!props.settingsManager.settings.parameter_config) {
-      props.settingsManager.settings.parameter_config = {};
-    }
-    props.settingsManager.settings.parameter_config.grounding = isSearchEnabled.value;
-    props.settingsManager.saveSettings();
-  }
-}
 
 /**
  * Toggles the reasoning state and updates the settings
@@ -423,7 +373,7 @@ function setReasoningEffort(value) {
 }
 
 // Expose the setMessage function to be called from the parent component
-defineExpose({ setMessage, toggleSearch, toggleReasoning, setReasoningEffort, $el: messageFormRoot });
+defineExpose({ setMessage, toggleReasoning, setReasoningEffort, $el: messageFormRoot });
 </script>
 
 <template>
@@ -433,14 +383,6 @@ defineExpose({ setMessage, toggleSearch, toggleReasoning, setReasoningEffort, $e
         placeholder="Type your message..." class="chat-textarea" rows="1"></textarea>
 
       <div class="input-actions">
-        <!-- Search toggle button -->
-        <button v-if="isBrowserSearchSupported" type="button" class="feature-button search-toggle-btn"
-          :class="{ 'search-enabled': isSearchEnabled }" @click="toggleSearch"
-          :aria-label="isSearchEnabled ? 'Disable web search' : 'Enable web search'">
-          <Icon icon="material-symbols:globe" width="22" height="22" />
-          <span class="search-label">Search</span>
-        </button>
-
         <!-- Reasoning toggle for models that should show a reasoning toggle -->
         <button v-if="selectedModel && showReasoningToggle && supportsReasoning"
           type="button" class="feature-button search-toggle-btn"
@@ -454,15 +396,15 @@ defineExpose({ setMessage, toggleSearch, toggleReasoning, setReasoningEffort, $e
         <DropdownMenuRoot v-else-if="selectedModel && showReasoningEffortSwitcher">
           <DropdownMenuTrigger class="feature-button search-toggle-btn">
             <Icon icon="material-symbols:lightbulb" width="22" height="22" />
-            <span>{{ reasoningEffort.charAt(0).toUpperCase() + reasoningEffort.slice(1) }} Reasoning</span>
+            <span>{{ reasoningEffort.charAt(0).toUpperCase() + reasoningEffort.slice(1) }}</span>
           </DropdownMenuTrigger>
 
           <DropdownMenuContent class="popover-dropdown reasoning-effort-dropdown" side="top" align="center"
             :side-offset="8">
             <div class="dropdown-scroll-container">
-              <DropdownMenuItem v-for="option in reasoningEffortOptions" :key="option" class="reasoning-effort-item"
+              <DropdownMenuItem v-for="option in reasoningEffortOptions.reverse()" :key="option" class="reasoning-effort-item"
                 :class="{ selected: option === reasoningEffort }" @click="() => setReasoningEffort(option)">
-                <span>{{ option.charAt(0).toUpperCase() + option.slice(1) }} Reasoning</span>
+                <span>{{ option.charAt(0).toUpperCase() + option.slice(1) }}</span>
               </DropdownMenuItem>
             </div>
           </DropdownMenuContent>
@@ -484,9 +426,11 @@ defineExpose({ setMessage, toggleSearch, toggleReasoning, setReasoningEffort, $e
 .input-section {
   /* Stick to the bottom of the scroll container (chat-column) */
   position: sticky;
-  bottom: 0;
+  background: var(--bg); 
+  border-radius: 20px 20px 0 0;
+  bottom: 0px;
   width: 100%;
-  padding: 8px 11px 0;
+  padding: 0;
   box-sizing: border-box;
   z-index: 10;
   /* Horizontal alignment & width now come from the parent .chat-column */
@@ -494,10 +438,11 @@ defineExpose({ setMessage, toggleSearch, toggleReasoning, setReasoningEffort, $e
 
 .input-area-wrapper {
   display: flex;
+  margin-bottom: 8px;
   flex-direction: column;
   background-color: var(--bg-input);
   border: 1px solid var(--border);
-  border-radius: 28px 28px 0 0;
+  border-radius: 20px;
   padding: 8px;
   box-shadow: var(--shadow-default);
   position: relative;
@@ -596,11 +541,6 @@ defineExpose({ setMessage, toggleSearch, toggleReasoning, setReasoningEffort, $e
 .search-toggle-btn.search-enabled:hover:not(:disabled) {
   background-color: var(--primary-600);
   border-color: var(--primary-600);
-}
-
-.search-label {
-  font-weight: 500;
-  font-size: 13px;
 }
 
 .input-actions {

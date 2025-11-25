@@ -10,9 +10,9 @@ Libre Assistant does **not** sell or store user information, and all chat & user
 - Support for multiple chats.
 - Detailed code-blocks, including syntax highlighting, downloading, and a copy button.
 - Customizable with name, occupation, and custom instructions.
-- Reasoning is visible.
-- Basic web grounding support.
-- Some models support customizable reasoning effort.
+- Reasoning is visible and properly styled.
+- Basic web grounding.
+- Reasoning effort customizability.
 - Incognito mode to prevent chat history from being saved.
 - Global memory to remember user details/preferences/opinions across chats.
 - Parameter configuration panel with temperature, top_p, seed options, and a web grounding toggle.
@@ -51,3 +51,26 @@ npm run dev
 
 ```sh
 npm run build
+```
+
+## Versioning
+
+This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+To update the version, use npm version commands:
+
+```bash
+# Bump the patch version (x.y.z -> x.y.z+1)
+npm version patch
+
+# Bump the minor version (x.y.z -> x.y+1.0)
+npm version minor
+
+# Bump the major version (x.y.z -> x+1.0.0)
+npm version major
+
+# Or set an explicit version
+npm version 1.2.3
+```
+
+All notable changes to this project are documented in the [CHANGELOG.md](./CHANGELOG.md) file.

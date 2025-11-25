@@ -161,6 +161,7 @@ useHead({
   flex: 1;
   max-width: 700px;
   width: 100%;
+  margin-bottom: 90px;
   margin: 0 auto;
   overflow: visible;    /* or just omit overflow entirely */
 }
