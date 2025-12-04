@@ -30,6 +30,15 @@ export const availableModels = [
     category: "Google",
     logo: "/ai_logos/gemini.svg",
     models: [
+
+      {
+        id: "google/gemini-3-pro-preview",
+        name: "Gemini 3 Pro Preview",
+        description: "Early access to Google's next-gen, most capable multimodal model.",
+        reasoning: true,
+        extra_functions: [],
+        extra_parameters: {}
+      },
       {
         id: "google/gemini-2.5-flash",
         name: "Gemini 2.5 Flash",
@@ -40,13 +49,16 @@ export const availableModels = [
           reasoning_effort: [["low", "medium", "high"], "medium"],
         }
       },
+
       {
-        id: "google/gemini-3-pro-preview",
-        name: "Gemini 3 Pro Preview",
-        description: "Early access to Google's next-gen, most capable multimodal model.",
+        id: "google/gemini-2.5-flash-lite-preview-09-2025",
+        name: "Gemini 2.5 Flash Lite Preview",
+        description: "Lightweight variant of Gemini 2.5 Flash optimized for speed.",
         reasoning: true,
         extra_functions: [],
-        extra_parameters: {}
+        extra_parameters: {
+          reasoning_effort: [["low", "medium", "high"], "medium"],
+        }
       },
     ]
   },
@@ -57,7 +69,7 @@ export const availableModels = [
       {
         id: "openai/gpt-5.1",
         name: "GPT-5.1",
-        description: "The frontier flagship model delivering state-of-the-art general intelligence.",
+        description: "The frontier flagship model delivering frontier general intelligence.",
         reasoning: true,
         extra_functions: [],
         extra_parameters: {
@@ -91,18 +103,18 @@ export const availableModels = [
     logo: "/ai_logos/deepseek.svg",
     models: [
       {
-        id: "deepseek/deepseek-r1-0528",
-        name: "DeepSeek R1 0528",
-        description: "Reasoning-dense model optimized for complex logic and coding.",
-        reasoning: true,
+        id: "deepseek/deepseek-v3.2",
+        name: "DeepSeek V3.2",
+        description: "Advanced general-purpose model designed with efficiency in mind.",
+        reasoning: [true, false],
         extra_functions: [],
         extra_parameters: {}
       },
       {
-        id: "deepseek/deepseek-v3.2-exp",
-        name: "DeepSeek V3.2 Exp",
-        description: "Experimental build offering optimized token usage.",
-        reasoning: [true, false],
+        id: "deepseek/deepseek-v3.2-speciale",
+        name: "DeepSeek V3.2 Speciale",
+        description: "High-compute SOTA variant designed for complex math & stem tasks.",
+        reasoning: true,
         extra_functions: [],
         extra_parameters: {}
       },
@@ -116,7 +128,7 @@ export const availableModels = [
         id: "z-ai/glm-4.6",
         name: "GLM 4.6",
         description: "Advanced bilingual model with strong logical reasoning and tool use.",
-        reasoning: [true, false], 
+        reasoning: [true, false],
         extra_functions: [],
         extra_parameters: {}
       },
