@@ -570,7 +570,7 @@ defineExpose({ scrollToEnd, isAtBottom, chatWrapper });
   box-sizing: border-box;
   position: relative;
   transition: all 0.3s cubic-bezier(.4, 1, .6, 1);
-  padding-bottom: 120px; /* space so the last message isn't hidden behind the message form */
+  padding-bottom: 100px;
 }
 
 .welcome-container {
@@ -748,141 +748,7 @@ defineExpose({ scrollToEnd, isAtBottom, chatWrapper });
   display: none;
 }
 
-.markdown-content {
-  color: var(--text-primary-light);
-  width: 100%;
-  max-width: 800px;
-  margin: 0 auto;
-  box-sizing: border-box;
-  transition: all 0.3s cubic-bezier(.4, 1, .6, 1);
-}
-
-.dark .markdown-content {
-  color: var(--text-primary-dark);
-}
-
-.markdown-content>*:first-child {
-  margin-top: 0;
-}
-
-.markdown-content>*:last-child {
-  margin-bottom: 0;
-}
-
-.markdown-content hr {
-  border: none;
-  border-top: 1px solid var(--reasoning-border-light);
-  margin: 1.5em 0;
-}
-
-.dark .markdown-content hr {
-  border-top-color: rgba(139, 148, 158, 0.3);
-}
-
-.markdown-content h1,
-.markdown-content h2,
-.markdown-content h3 {
-  margin-top: 1.2em;
-  margin-bottom: 0;
-  font-weight: 700;
-}
-
-.dark .markdown-content h1,
-.dark .markdown-content h2,
-.dark .markdown-content h3 {
-  font-weight: 700;
-}
-
-.markdown-content p {
-  margin: 0.8em 0;
-}
-
-.markdown-content strong,
-.markdown-content b {
-  font-weight: 700;
-  color: var(--text-primary-light);
-}
-
-.dark .markdown-content strong,
-.dark .markdown-content b {
-  color: var(--text-primary-dark);
-}
-
-.markdown-content ul,
-.markdown-content ol {
-  margin: 1em 0;
-  padding-left: 2em;
-}
-
-.markdown-content li.task-list-item {
-  list-style-type: none;
-  position: relative;
-  margin-bottom: 0.5em;
-}
-
-.markdown-content li.task-list-item input[type="checkbox"] {
-  position: absolute;
-  left: -2em;
-  width: 1.2em;
-  height: 1.2em;
-  border: 1px solid var(--reasoning-border-light);
-  border-radius: 3px;
-  background-color: var(--background);
-  transition: all 0.2s ease-in-out;
-  margin-top: 0.2em;
-  pointer-events: none;
-  cursor: default;
-  appearance: none;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
-}
-
-.dark .markdown-content li.task-list-item input[type="checkbox"] {
-  border-color: var(--reasoning-border-dark);
-  background-color: var(--code-header-bg);
-}
-
-.markdown-content li.task-list-item input[type="checkbox"]:checked {
-  background-color: #3fb950;
-  border-color: #3fb950;
-}
-
-.markdown-content li.task-list-item input[type="checkbox"]:checked::after {
-  content: "";
-  position: absolute;
-  left: 0.3em;
-  top: 0.1em;
-  width: 0.4em;
-  height: 0.7em;
-  border: solid white;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-}
-
-.markdown-content li.task-list-item input[type="checkbox"]+span {
-  margin-left: 0.5em;
-}
-
-.markdown-content p,
-.markdown-content li {
-  text-rendering: optimizeSpeed;
-}
-
-.dark .markdown-content li.task-list-item input[type="checkbox"]:checked+span {
-  color: var(--text-secondary-dark);
-}
-
-.markdown-content blockquote {
-  border-left: 4px solid var(--reasoning-border-light);
-  margin: 1.5em 0;
-  padding: 0.5em 1.2em;
-  color: var(--text-secondary-light);
-  border-radius: 4px;
-}
-
-.dark .markdown-content blockquote {
-  border-left-color: var(--reasoning-border-dark);
-  color: var(--text-secondary-dark);
-}
+/* Note: .markdown-content base styles are now in code-blocks.css */
 
 .copy-button-container {
   margin-top: 8px;
@@ -903,8 +769,8 @@ defineExpose({ scrollToEnd, isAtBottom, chatWrapper });
   background: transparent;
   border: none;
   border-radius: 8px;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   padding: 6px;
   cursor: pointer;
   transition: all 0.2s ease-in-out;
@@ -921,56 +787,6 @@ defineExpose({ scrollToEnd, isAtBottom, chatWrapper });
 
 .copy-button.copied {
   color: var(--success) !important;
-}
-
-
-.markdown-content table {
-  border-collapse: collapse;
-  width: 100%;
-  margin: 1em 0;
-  display: block;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch; /* For iOS Safari */
-}
-
-.markdown-content table th,
-.markdown-content table td {
-  padding: 8px 12px;
-  text-align: left;
-  white-space: nowrap; /* Prevent text wrapping in table cells */
-}
-
-.markdown-content table th {
-  border-bottom: 2px solid var(--reasoning-border-light);
-  font-weight: 600;
-  color: var(--text-primary-light);
-}
-
-.dark .markdown-content table th {
-  border-bottom-color: var(--reasoning-border-dark);
-  color: var(--text-primary-dark);
-}
-
-.markdown-content table td {
-  border-bottom: 1px solid var(--reasoning-border-light);
-}
-
-.dark .markdown-content table td {
-  border-bottom-color: var(--reasoning-border-dark);
-}
-
-.markdown-content table tr:last-child td {
-  border-bottom: none;
-}
-
-.katex-inline {
-  vertical-align: middle;
-}
-
-.katex-display {
-  display: block;
-  text-align: center;
-  margin: 1em 0;
 }
 
 .message-content-footer {

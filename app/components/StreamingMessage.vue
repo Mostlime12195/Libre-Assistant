@@ -1,10 +1,10 @@
 <template>
-  <div class="no-padding">
-    <!-- Static container for completed elements -->
-    <div ref="staticContainer" class="no-padding markdown-content"></div>
+  <div class="markdown-content streaming-message-wrapper">
+    <!-- Static container for completed elements - uses display:contents so children appear as direct children of wrapper -->
+    <div ref="staticContainer" class="streaming-content-container"></div>
 
     <!-- Streaming container for current element being rendered -->
-    <div ref="streamingContainer" class="no-padding markdown-content"></div>
+    <div ref="streamingContainer" class="streaming-content-container"></div>
   </div>
 </template>
 
@@ -272,47 +272,18 @@ onBeforeUnmount(() => {
 </script>
 
 <style>
-.no-padding {
+.streaming-message-wrapper {
   padding: 0;
 }
 
-/* Ensure tables in streaming content also have horizontal scrolling when needed */
-.markdown-content table {
-  border-collapse: collapse;
-  width: 100%;
-  margin: 1em 0;
-  display: block;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch; /* For iOS Safari */
+/* 
+ * Use display:contents so children of these containers appear as direct children 
+ * of the .markdown-content wrapper for CSS selector purposes.
+ * This makes :first-child/:last-child rules work across both containers.
+ */
+.streaming-content-container {
+  display: contents;
 }
 
-.markdown-content table th,
-.markdown-content table td {
-  padding: 8px 12px;
-  text-align: left;
-  white-space: nowrap; /* Prevent text wrapping in table cells */
-}
-
-.markdown-content table th {
-  border-bottom: 2px solid var(--reasoning-border-light);
-  font-weight: 600;
-  color: var(--text-primary-light);
-}
-
-.dark .markdown-content table th {
-  border-bottom-color: var(--reasoning-border-dark);
-  color: var(--text-primary-dark);
-}
-
-.markdown-content table td {
-  border-bottom: 1px solid var(--reasoning-border-light);
-}
-
-.dark .markdown-content table td {
-  border-bottom-color: var(--reasoning-border-dark);
-}
-
-.markdown-content table tr:last-child td {
-  border-bottom: none;
-}
+/* Note: .markdown-content styles are in code-blocks.css */
 </style>

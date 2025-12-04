@@ -4,20 +4,11 @@
       <button v-if="!sidebarOpen" class="sidebar-toggle" @click="toggleSidebar" aria-label="Toggle sidebar">
         <Icon icon="material-symbols:side-navigation" width="24" height="24" />
       </button>
+      <button v-if="!sidebarOpen" class="new-chat-btn" @click="handleNewChat" aria-label="New chat">
+        <Icon icon="material-symbols:add-box-outline" width="24" height="24" />
+      </button>
       <div class="model-selector-container">
-        <template v-if="isMobile">
-          <!-- Mobile: Button that opens bottom sheet -->
-          <button class="model-selector-btn mobile-selector"
-            :aria-label="`Change model, currently ${props.selectedModelName}`"
-            @click="openBottomSheet">
-            <div class="model-logo-name">
-              <Logo v-if="selectedModelLogo" :src="selectedModelLogo" :size="24" class="logo-inline" :alt="props.selectedModelName" />
-              <span class="model-name-display">{{ props.selectedModelName }}</span>
-            </div>
-            <Icon icon="material-symbols:keyboard-arrow-down-rounded" width="24" height="24" class="icon" />
-          </button>
-        </template>
-        <template v-else>
+        <template v-if="!isMobile">
           <!-- Desktop: Dropdown menu -->
           <DropdownMenuRoot>
             <DropdownMenuTrigger class="model-selector-btn"
@@ -81,15 +72,7 @@
         </template>
       </div>
 
-      <!-- Mobile Bottom Sheet Model Selector -->
-      <BottomSheetModelSelector
-        v-if="isMobile"
-        :is-open="isBottomSheetOpen"
-        :selected-model-id="props.selectedModelId"
-        :selected-model-name="props.selectedModelName"
-        @close="closeBottomSheet"
-        @model-selected="handleModelSelect"
-      />
+
       <div v-if="(isIncognito && messages && messages.length > 0) || isIncognitoRoute" class="incognito-indicator">
         <Icon icon="mdi:incognito" width="20" height="20" />
         <span class="incognito-text">{{ isIncognitoRoute ? 'Incognito Mode' : 'Incognito mode' }}</span>
@@ -124,9 +107,8 @@ import {
 } from "reka-ui";
 import { availableModels } from "../composables/availableModels";
 import { Icon } from "@iconify/vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import Logo from "./Logo.vue";
-import BottomSheetModelSelector from "./BottomSheetModelSelector.vue";
 import { useWindowSize } from "@vueuse/core";
 
 const props = defineProps({
@@ -172,6 +154,11 @@ const emit = defineEmits(['model-selected', 'toggle-incognito', 'toggle-paramete
 
 // Get the current route
 const route = useRoute();
+const router = useRouter();
+
+const handleNewChat = () => {
+  router.push('/');
+};
 
 // Computed property to check if we're on the incognito route
 const isIncognitoRoute = computed(() => route.path === '/incognito');
@@ -209,9 +196,6 @@ const isMobile = computed(() => {
   return windowWidth.value < 600;
 });
 
-// State for mobile bottom sheet
-const isBottomSheetOpen = ref(false);
-
 // Computed property to get the logo of the currently selected model
 const selectedModelLogo = computed(() => {
   if (!props.selectedModelId) return null;
@@ -234,21 +218,6 @@ const selectedModelLogo = computed(() => {
   return null;
 });
 
-// Method to open the bottom sheet on mobile
-const openBottomSheet = () => {
-  isBottomSheetOpen.value = true;
-};
-
-// Method to close the bottom sheet
-const closeBottomSheet = () => {
-  isBottomSheetOpen.value = false;
-};
-
-// Method to handle model selection from the bottom sheet
-const handleModelSelect = (modelId, modelName) => {
-  emit('model-selected', modelId, modelName);
-};
-
 // Function to ensure top bar visibility
 function ensureTopBarVisibility() {
   if (topBarRef.value) {
@@ -260,6 +229,8 @@ function ensureTopBarVisibility() {
     topBarRef.value.style.zIndex = '100';
   }
 }
+
+
 
 onMounted(() => {
   console.log('TopBar mounted');
@@ -285,6 +256,26 @@ watch(() => [props.sidebarOpen, props.isIncognito], () => {
 /* Icon styling to ensure proper color inheritance */
 .sidebar-toggle :deep(svg) {
   color: var(--text-primary);
+}
+
+.new-chat-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  transition: background 0.18s;
+  color: var(--text-primary);
+}
+
+.new-chat-btn:hover {
+  background: var(--btn-hover);
 }
 
 .model-selector-btn :deep(svg) {
@@ -399,8 +390,8 @@ watch(() => [props.sidebarOpen, props.isIncognito], () => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   /* Make it spherical */
   background: none;

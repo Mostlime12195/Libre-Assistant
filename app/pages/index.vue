@@ -81,7 +81,7 @@ const {
   sendInitialMessageToAI // Added function to send initial message and get AI response
 } = useConversation();
 
-// Override sendMessage to create conversation, trigger AI response, and navigate
+// Override sendMessage to create conversation and navigate immediately
 async function sendMessage(message, originalMessage = null) {
   if (!message.trim() || isLoading.value) return;
 
@@ -93,10 +93,8 @@ async function sendMessage(message, originalMessage = null) {
     // Create a new conversation with the initial message
     const conversationId = await createNewConversationWithMessage(message);
 
-    // Trigger AI to respond to the initial message
-    await sendInitialMessageToAI(message);
-
-    // Navigate to the new conversation
+    // Navigate immediately to the new conversation
+    // The [id].vue route will detect this is a new conversation and trigger the AI response
     await router.push(`/${conversationId}`);
   }
 }
@@ -170,8 +168,8 @@ useHead({
   width: 100%;
   position: relative;
   justify-content: center;
-  overflow-y: auto; 
-  scrollbar-gutter: stable both-edges;
+  overflow-y: scroll;
+  padding: 0 16px
 }
 
 /* Centered content column, no own scroll */

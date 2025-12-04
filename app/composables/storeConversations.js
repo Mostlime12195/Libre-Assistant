@@ -112,6 +112,7 @@ async function generateTitleInBackground(conversationId, plainMessages, lastUpda
       await localforage.setItem("conversations_metadata", updatedMetadata);
 
       emitter.emit("updateConversations");
+      emitter.emit("conversationTitleUpdated", { conversationId, title: newTitle });
       console.log(`Title updated for conversation ${conversationId}: ${newTitle}`);
     }
   } catch (error) {

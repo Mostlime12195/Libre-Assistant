@@ -377,8 +377,8 @@ async function handleClearAllMemory() {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 36px;
+  height: 36px;
   border: none;
   background: var(--btn-hover);
   border-radius: var(--radius-md);
@@ -602,7 +602,7 @@ async function handleClearAllMemory() {
 }
 
 .clear-memory-btn {
-  padding: 0.5rem 1rem;
+  padding: 0 1rem;
   background: var(--destructive);
   color: var(--destructive-foreground);
   border: none;
@@ -611,6 +611,10 @@ async function handleClearAllMemory() {
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .clear-memory-btn:hover {
@@ -662,8 +666,8 @@ async function handleClearAllMemory() {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2rem;
-  height: 2rem;
+  width: 36px;
+  height: 36px;
   border: none;
   background: transparent;
   border-radius: var(--radius-md);
@@ -710,12 +714,15 @@ async function handleClearAllMemory() {
 
 .cancel-btn,
 .save-btn {
-  padding: 0.625rem 1.25rem;
+  padding: 0 1.25rem;
   border-radius: var(--radius-md);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
-  min-height: 2.5rem;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .cancel-btn {
@@ -751,9 +758,9 @@ async function handleClearAllMemory() {
 
   /* Make nav buttons smaller and center the icon */
   .nav-link {
-    width: 40px;
+    width: 36px;
     /* Reduced width */
-    height: 40px;
+    height: 36px;
     /* Reduced height, keep it square */
     padding: 0.6rem;
     /* Adjusted padding */

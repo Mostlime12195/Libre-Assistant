@@ -55,7 +55,7 @@ class ToolManager {
     if (!tool) {
       throw new Error(`Tool "${name}" not found`);
     }
-    
+
     try {
       return await tool.executor(args);
     } catch (error) {
@@ -106,24 +106,29 @@ class ToolManager {
 
     this.registerTool(
       'addMemory',
-      async (args) => {
+      async (args, messageHistory = []) => {
         if (!args.fact) {
           throw new Error('addMemory tool requires a "fact" argument');
         }
-        await addMemory(args.fact);
-        return { success: true, message: `Added fact: "${args.fact}"` };
+        await addMemory(args.fact, args.isGlobal || false, messageHistory);
+        const memoryType = args.isGlobal ? 'global' : 'local';
+        return { success: true, message: `Added ${memoryType} fact: "${args.fact}"` };
       },
       {
         type: "function",
         function: {
           name: "addMemory",
-          description: "Add a new fact to memory",
+          description: "Add a new fact to memory. Use isGlobal=true for style preferences and basic info that applies to all conversations. Use isGlobal=false (default) for specific contextual facts.",
           parameters: {
             type: "object",
             properties: {
               fact: {
                 type: "string",
                 description: "The fact to add to memory"
+              },
+              isGlobal: {
+                type: "boolean",
+                description: "Whether this is a global memory (always included) or local memory (filtered by relevance). Defaults to false."
               }
             },
             required: ["fact"]
@@ -134,11 +139,11 @@ class ToolManager {
 
     this.registerTool(
       'modifyMemory',
-      async (args) => {
+      async (args, messageHistory = []) => {
         if (!args.oldFact || !args.newFact) {
           throw new Error('modifyMemory tool requires "oldFact" and "newFact" arguments');
         }
-        await modifyMemory(args.oldFact, args.newFact);
+        await modifyMemory(args.oldFact, args.newFact, args.isGlobal, messageHistory);
         return {
           success: true,
           message: `Modified fact: "${args.oldFact}" -> "${args.newFact}"`
@@ -148,7 +153,7 @@ class ToolManager {
         type: "function",
         function: {
           name: "modifyMemory",
-          description: "Update an existing fact in memory",
+          description: "Update an existing fact in memory. Optionally change whether it's a global or local memory.",
           parameters: {
             type: "object",
             properties: {
@@ -159,6 +164,10 @@ class ToolManager {
               newFact: {
                 type: "string",
                 description: "The new fact to replace it with"
+              },
+              isGlobal: {
+                type: "boolean",
+                description: "Whether this should be a global memory (always included) or local memory (filtered by relevance). If not specified, preserves the current setting."
               }
             },
             required: ["oldFact", "newFact"]

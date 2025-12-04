@@ -268,8 +268,8 @@ const onAnimationComplete = () => {
 }
 
 .nav-button, .nav-placeholder {
-  min-width: 40px;
-  min-height: 40px;
+  min-width: 36px;
+  min-height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;

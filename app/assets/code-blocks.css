@@ -203,3 +203,182 @@
 .markdown-content pre code.hljs .hljs-selector-pseudo {
   color: #1fad83; /* Atelier Dune built-in color */
 }
+
+/* ==========================================
+   Shared Markdown Content Styles
+   Used by both ChatPanel.vue and StreamingMessage.vue
+   ========================================== */
+
+.markdown-content {
+  color: var(--text-primary);
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  transition: all 0.3s cubic-bezier(.4, 1, .6, 1);
+}
+
+.markdown-content>*:first-child {
+  margin-top: 0;
+}
+
+.markdown-content>*:last-child {
+  margin-bottom: 0;
+}
+
+/* Headings */
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3 {
+  margin-top: 1.2em;
+  margin-bottom: 0;
+  font-weight: 700;
+}
+
+/* Paragraphs */
+.markdown-content p {
+  margin: 0.8em 0;
+}
+
+/* Bold/Strong text */
+.markdown-content strong,
+.markdown-content b {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* Lists */
+.markdown-content ul,
+.markdown-content ol {
+  margin: 1em 0;
+  padding-left: 2em;
+}
+
+.markdown-content p,
+.markdown-content li {
+  text-rendering: optimizeSpeed;
+}
+
+/* Task list items */
+.markdown-content li.task-list-item {
+  list-style-type: none;
+  position: relative;
+  margin-bottom: 0.5em;
+}
+
+.markdown-content li.task-list-item input[type="checkbox"] {
+  position: absolute;
+  left: -2em;
+  width: 1.2em;
+  height: 1.2em;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background-color: var(--bg);
+  transition: all 0.2s ease-in-out;
+  margin-top: 0.2em;
+  pointer-events: none;
+  cursor: default;
+  appearance: none;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.dark .markdown-content li.task-list-item input[type="checkbox"] {
+  border-color: var(--border);
+  background-color: var(--elevated-surface);
+}
+
+.markdown-content li.task-list-item input[type="checkbox"]:checked {
+  background-color: #3fb950;
+  border-color: #3fb950;
+}
+
+.markdown-content li.task-list-item input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 0.3em;
+  top: 0.1em;
+  width: 0.4em;
+  height: 0.7em;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.markdown-content li.task-list-item input[type="checkbox"]+span {
+  margin-left: 0.5em;
+}
+
+.dark .markdown-content li.task-list-item input[type="checkbox"]:checked+span {
+  color: var(--text-secondary);
+}
+
+/* Blockquotes */
+.markdown-content blockquote {
+  border-left: 4px solid var(--border);
+  margin: 1.5em 0;
+  padding: 0.5em 1.2em;
+  color: var(--text-secondary);
+  border-radius: 4px;
+}
+
+/* Horizontal rules */
+.markdown-content hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1.5em 0;
+}
+
+.dark .markdown-content hr {
+  border-top-color: rgba(139, 148, 158, 0.3);
+}
+
+/* Tables */
+.markdown-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+  display: block;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.markdown-content table th,
+.markdown-content table td {
+  padding: 8px 12px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.markdown-content table th {
+  border-bottom: 2px solid var(--border);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.dark .markdown-content table th {
+  border-bottom-color: var(--border);
+}
+
+.markdown-content table td {
+  border-bottom: 1px solid var(--border);
+}
+
+.dark .markdown-content table td {
+  border-bottom-color: var(--border);
+}
+
+.markdown-content table tr:last-child td {
+  border-bottom: none;
+}
+
+/* KaTeX math display */
+.katex-inline {
+  vertical-align: middle;
+}
+
+.katex-display {
+  display: block;
+  text-align: center;
+  margin: 1em 0;
+}
+

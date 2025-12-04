@@ -7,6 +7,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "reka-ui";
+import { useWindowSize } from "@vueuse/core";
+import Logo from "./Logo.vue";
+import BottomSheetModelSelector from "./BottomSheetModelSelector.vue";
 
 // Define component properties and emitted events
 const props = defineProps({
@@ -14,6 +17,7 @@ const props = defineProps({
   selectedModelId: String, // Add selected model ID to determine if search is supported
   availableModels: Array, // Add available models to check tool support
   settingsManager: Object, // Add settings manager prop
+  selectedModelName: String,
 });
 const emit = defineEmits([
   "send-message",
@@ -219,6 +223,40 @@ watch(
   { immediate: true }
 );
 
+// --- Mobile Model Selector Logic ---
+const { width: windowWidth } = useWindowSize();
+const isMobile = computed(() => windowWidth.value < 600);
+const isBottomSheetOpen = ref(false);
+
+const selectedModelLogo = computed(() => {
+  if (!props.selectedModelId || !props.availableModels) return null;
+  for (const item of props.availableModels) {
+    if (item.category) {
+      const modelInCategory = item.models.find(model => model.id === props.selectedModelId);
+      if (modelInCategory) return item.logo;
+    } else if (item.id === props.selectedModelId) {
+      return item.logo;
+    }
+  }
+  return null;
+});
+
+function openBottomSheet() {
+  isBottomSheetOpen.value = true;
+}
+
+function closeBottomSheet() {
+  isBottomSheetOpen.value = false;
+}
+
+function handleModelSelect(modelId, modelName) {
+  if (props.settingsManager) {
+    props.settingsManager.settings.selected_model_id = modelId;
+    props.settingsManager.saveSettings();
+  }
+  closeBottomSheet();
+}
+
 // --- Event Handlers ---
 
 watch(inputMessage, (newValue) => {
@@ -402,7 +440,7 @@ defineExpose({ setMessage, toggleReasoning, setReasoningEffort, $el: messageForm
           <DropdownMenuContent class="popover-dropdown reasoning-effort-dropdown" side="top" align="center"
             :side-offset="8">
             <div class="dropdown-scroll-container">
-              <DropdownMenuItem v-for="option in reasoningEffortOptions.reverse()" :key="option" class="reasoning-effort-item"
+              <DropdownMenuItem v-for="option in reasoningEffortOptions" :key="option" class="reasoning-effort-item"
                 :class="{ selected: option === reasoningEffort }" @click="() => setReasoningEffort(option)">
                 <span>{{ option.charAt(0).toUpperCase() + option.slice(1) }}</span>
               </DropdownMenuItem>
@@ -410,15 +448,33 @@ defineExpose({ setMessage, toggleReasoning, setReasoningEffort, $el: messageForm
           </DropdownMenuContent>
         </DropdownMenuRoot>
 
-        <button type="submit" class="action-btn send-btn" :disabled="!trimmedMessage && !isLoading"
-          @click="handleActionClick" :aria-label="isLoading ? 'Stop generation' : 'Send message'"
-          style="margin-left: auto;">
-          <Icon v-if="!isLoading" icon="material-symbols:send-rounded" width="22" height="22" />
-          <Icon v-else icon="material-symbols:stop-rounded" width="22" height="22" />
-        </button>
+        <!-- Right aligned actions -->
+        <div class="right-actions">
+          <!-- Mobile Model Selector Button -->
+          <button v-if="isMobile" type="button" class="feature-button model-selector-mobile-btn"
+            @click="openBottomSheet" :aria-label="`Change model, currently ${props.selectedModelName}`">
+            <Logo v-if="selectedModelLogo" :src="selectedModelLogo" :size="18" class="logo-inline" />
+            <span class="model-name-truncate">{{ props.selectedModelName }}</span>
+          </button>
+
+          <button type="submit" class="action-btn send-btn" :disabled="!trimmedMessage && !isLoading"
+            @click="handleActionClick" :aria-label="isLoading ? 'Stop generation' : 'Send message'">
+            <Icon v-if="!isLoading" icon="material-symbols:arrow-upward-rounded" width="22" height="22" />
+            <Icon v-else icon="material-symbols:stop-rounded" width="22" height="22" />
+          </button>
+        </div>
       </div>
     </div>
   </div>
+
+  <BottomSheetModelSelector
+    v-if="isMobile"
+    :is-open="isBottomSheetOpen"
+    :selected-model-id="props.selectedModelId"
+    :selected-model-name="props.selectedModelName"
+    @close="closeBottomSheet"
+    @model-selected="handleModelSelect"
+  />
 </template>
 
 <style scoped>
@@ -442,7 +498,7 @@ defineExpose({ setMessage, toggleReasoning, setReasoningEffort, $el: messageForm
   flex-direction: column;
   background-color: var(--bg-input);
   border: 1px solid var(--border);
-  border-radius: 20px;
+  border-radius: 16px;
   padding: 8px;
   box-shadow: var(--shadow-default);
   position: relative;
@@ -485,9 +541,9 @@ defineExpose({ setMessage, toggleReasoning, setReasoningEffort, $el: messageForm
 }
 
 .send-btn {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
   background-color: var(--btn-send-bg);
   color: var(--btn-send-text);
   flex-shrink: 0;
@@ -514,8 +570,7 @@ defineExpose({ setMessage, toggleReasoning, setReasoningEffort, $el: messageForm
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 6px 12px;
-  border-radius: 20px;
+  border-radius: 8px;
 
   color: var(--btn-model-selector-text);
   border: 1px solid var(--border);
@@ -547,7 +602,7 @@ defineExpose({ setMessage, toggleReasoning, setReasoningEffort, $el: messageForm
   display: flex;
   justify-content: flex-start;
   align-items: center;
-  padding: 8px 4px 0;
+  padding: 8px 0 0;
   gap: 6px;
   width: 100%;
 }
@@ -618,5 +673,31 @@ defineExpose({ setMessage, toggleReasoning, setReasoningEffort, $el: messageForm
   .chat-textarea {
     font-size: 16px; /* Prevent zoom on iOS */
   }
+}
+
+.logo-inline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.model-name-truncate {
+  max-width: 100px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.model-selector-mobile-btn {
+  padding: 4px 8px;
+  gap: 4px;
+}
+
+.right-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 </style>

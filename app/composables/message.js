@@ -6,7 +6,7 @@
 
 import { availableModels } from '~/composables/availableModels';
 import { generateSystemPrompt } from '~/composables/systemPrompt';
-import { listMemory, addMemory, modifyMemory, deleteMemory } from '~/composables/memory';
+import { listMemory, addMemory, modifyMemory, deleteMemory, findRelevantMemories } from '~/composables/memory';
 import { toolManager } from '~/composables/toolsManager';
 
 // Helper function to find a model by ID, including nested models in categories
@@ -61,12 +61,20 @@ export async function* handleIncomingMessage(
 
     // Append current date and time to the user's query for awareness.
     // We don't use the system prompt for the time to allow cached input tokens.
-    const queryWithDateTime = `<context>\n  <!-- CURRENT TIME ADDED AUTOMATICALLY; ONLY USE THE CURRENT TIME WHEN REQUIRED OR EXPLICITLY TOLD TO USE. -->\n  Current Time: ${new Date()}\n</context>\n\n${query}`;
+    const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    const queryWithDateTime = `<context>\n  <!-- CURRENT DATE ADDED AUTOMATICALLY; ONLY USE THE CURRENT DATE WHEN REQUIRED OR EXPLICITLY TOLD TO USE. -->\n  Current Date: ${currentDate}\n</context>\n\n${query}`;
 
     // Load memory facts if memory is enabled and not in incognito mode
     let memoryFacts = [];
     if (settings.global_memory_enabled && !isIncognito) {
-      memoryFacts = await listMemory();
+      // Use semantic search to find relevant memories based on the user's query
+      // This retrieves all global memories + local memories above similarity threshold
+      // Pass message history for better contextual embeddings
+      memoryFacts = await findRelevantMemories(
+        query,
+        settings.memory_similarity_threshold || 0.65,
+        plainMessages
+      );
     }
 
     // Determine which tools are actually being used
@@ -150,19 +158,19 @@ export async function* handleIncomingMessage(
         }
         // Handle models with reasoning: [true, false] (toggleable reasoning)
         else if (Array.isArray(selectedModelInfo.reasoning) &&
-                 selectedModelInfo.reasoning.length === 2 &&
-                 selectedModelInfo.reasoning[0] === true &&
-                 selectedModelInfo.reasoning[1] === false) {
-            // Add reasoning with enabled flag based on model parameters for other models
-            requestBody.reasoning = {
-              enabled: modelParameters?.reasoning?.effort !== 'none'
-            };
+          selectedModelInfo.reasoning.length === 2 &&
+          selectedModelInfo.reasoning[0] === true &&
+          selectedModelInfo.reasoning[1] === false) {
+          // Add reasoning with enabled flag based on model parameters for other models
+          requestBody.reasoning = {
+            enabled: modelParameters?.reasoning?.effort !== 'none'
+          };
         }
         // Handle models with reasoning: true - these have reasoning capabilities but no toggle
         else if (selectedModelInfo.reasoning === true) {
           // Add reasoning_effort if specified in model parameters
           if (modelParameters?.reasoning?.effort) {
-            requestBody.reasoning = {effort: modelParameters.reasoning.effort};
+            requestBody.reasoning = { effort: modelParameters.reasoning.effort };
           }
         }
         // For models with reasoning: false, don't add any reasoning parameters
@@ -346,7 +354,7 @@ export async function* handleIncomingMessage(
       }
 
       // Execute tools locally and append tool messages
-      const toolResultMessages = await executeToolCallsLocally(completedToolCalls);
+      const toolResultMessages = await executeToolCallsLocally(completedToolCalls, plainMessages);
 
       // Keep these for next iteration
       intermediateMessages.push(
@@ -391,7 +399,7 @@ export async function* handleIncomingMessage(
 
 
 // Helper function to execute tool calls locally with toolManager
-async function executeToolCallsLocally(completedToolCalls) {
+async function executeToolCallsLocally(completedToolCalls, messageHistory = []) {
   const toolResultMessages = [];
 
   for (const toolCall of completedToolCalls) {
@@ -417,7 +425,8 @@ async function executeToolCallsLocally(completedToolCalls) {
     }
 
     try {
-      const result = await tool.executor(args);
+      // Pass message history to tool executor for context
+      const result = await tool.executor(args, messageHistory);
       toolResultMessages.push({
         role: "tool",
         tool_call_id: toolCall.id,

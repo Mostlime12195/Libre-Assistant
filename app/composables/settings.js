@@ -16,22 +16,22 @@ class Settings {
       user_name: null, // User's name
       occupation: null, // User's occupation
       custom_instructions: null, // Custom instructions for Libre
-      
+
       // --- Memory Settings ---
-      global_memory_enabled: false, // Whether global memory is enabled
-      
+      global_memory_enabled: true, // Whether global memory is enabled
+
       // --- Model Settings ---
       selected_model_id: "moonshotai/kimi-k2-instruct-0905", // Default model ID
-      
+
       // --- Search Settings ---
       search_enabled: false, // Whether search is enabled by default
-      
+
       // --- Model-Specific Settings ---
       model_settings: {}, // Per-model settings storage
-      
+
       // --- Parameter Config Settings ---
       parameter_config: { ...DEFAULT_PARAMETERS },
-      
+
       // --- GPT-OSS Specific Settings ---
       gpt_oss_limit_tables: false, // Whether to limit table usage for GPT-OSS models
     });
@@ -42,7 +42,7 @@ class Settings {
     // Create a non-reactive copy of default settings to avoid circular references
     this.defaultSettings = {
       version: 2,
-      global_memory_enabled: false, // Add default value for global memory
+      global_memory_enabled: true, // Add default value for global memory
       selected_model_id: "moonshotai/kimi-k2-instruct-0905", // Default model ID
       search_enabled: false, // Default value for search setting
       model_settings: {}, // Default value for model settings
@@ -111,7 +111,7 @@ class Settings {
         // Migration: If search_enabled is true and grounding parameter doesn't exist yet,
         // set grounding to true to preserve user's previous search preference
         if (mergedSettings.search_enabled &&
-            (!mergedSettings.parameter_config || mergedSettings.parameter_config.grounding === undefined)) {
+          (!mergedSettings.parameter_config || mergedSettings.parameter_config.grounding === undefined)) {
           if (!mergedSettings.parameter_config) {
             mergedSettings.parameter_config = { ...DEFAULT_PARAMETERS };
           }

@@ -42,17 +42,19 @@ const BOUNDARIES_AND_LIMITATIONS = `### Your Limitations
 
 const KNOWLEDGE_CUTOFF_REGULAR = `### Knowledge Cutoff
 *   Your knowledge has a cutoff date, and you don't have information on events after that date.
-*   When asked about recent events or information beyond your knowledge cutoff, respond with "I don't have information on that topic beyond my knowledge cutoff date." unless you are given tools or external data to access up-to-date information.
+*   When asked about recent events or information beyond your knowledge cutoff, notify the user of your limitations unless you are given tools or external data to access up-to-date information.
 *   You may be provided with context data (like the current time) inside <context> tags. Use this information to answer queries if relevant, but do not reference the context in your response unless the user specifically asks for it.`;
 
 const MEMORY_AWARENESS = `### Memory Awareness
 *   You have a global memory system that remembers important facts about the user across conversations.
-*   These memories help you provide more personalized responses.
-*   If the user asks about something that might be in your memory, you can use that information.
+*   Memories are categorized as either **global** (always relevant) or **local** (contextually relevant):
+  - **Global memories**: Style preferences, basic user information - always included in context
+  - **Local memories**: Specific facts filtered by semantic relevance to the current query
+*   Only memories relevant to the current conversation are automatically included to optimize context usage.
 *   You have access to specific tools for managing memory when needed:
-  - listMemory(): Retrieve all stored memory facts
-  - addMemory(fact): Add a new fact to memory
-  - modifyMemory(oldFact, newFact): Update an existing fact
+  - listMemory(): Retrieve all stored memory facts (for understanding what exists)
+  - addMemory(fact, isGlobal): Add a new fact (isGlobal defaults to false for local memories)
+  - modifyMemory(oldFact, newFact, isGlobal): Update an existing fact
   - deleteMemory(fact): Remove a specific fact from memory
 *   Use these tools when the user explicitly asks you to remember something or when you identify important information that should be retained.`;
 
@@ -113,7 +115,9 @@ export async function generateSystemPrompt(
   if (global_memory_enabled && memoryFacts.length > 0) {
     const memorySection = `### User Memory
 The following are facts about the user generated from the user's other conversations:
-${memoryFacts.map((fact) => `- ${fact}`).join("\\n")}`;
+<context>
+${memoryFacts.map((fact) => `- ${fact}`).join("\\n")}
+</context>`;
     promptSections.push(memorySection);
   }
 
@@ -134,7 +138,6 @@ ${memoryFacts.map((fact) => `- ${fact}`).join("\\n")}`;
 
   if (isGptOssModel && gpt_oss_limit_tables) {
     promptSections.push(TABLE_LIMITATION_GUIDELINES);
-    console.log("Table limitation guidelines added for GPT-OSS model.");
   }
 
   // Add knowledge cutoff section

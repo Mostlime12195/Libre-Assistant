@@ -76,7 +76,8 @@ const {
   newConversation,
   toggleIncognito,
   setChatPanel,
-  chatPanel // This is the chat panel ref from the composable
+  chatPanel, // This is the chat panel ref from the composable
+  sendInitialMessageToAI // Function to send initial message without duplicating user message
 } = useConversation();
 
 const messageFormRef = ref(null); // Reference to the MessageForm component
@@ -96,6 +97,17 @@ onMounted(async () => {
   setChatPanel(chatPanelRef.value);
 
   // The conversation loading is now handled by the useConversation composable
+  
+  // Check if this is a newly created conversation that needs an AI response
+  // (i.e., it has a user message but no assistant response yet)
+  await nextTick();
+  if (messages.value.length === 1 && messages.value[0].role === 'user') {
+    // This is a new conversation with only the initial user message
+    // Automatically trigger the AI response using sendInitialMessageToAI
+    // which has built-in duplicate detection to avoid adding the user message again
+    const userMessage = messages.value[0].content;
+    await sendInitialMessageToAI(userMessage);
+  }
 });
 
 /**
@@ -150,8 +162,8 @@ useHead({
   width: 100%;
   position: relative;
   justify-content: center;
-  overflow-y: auto;     /* MOVE scroll here */
-  scrollbar-gutter: stable both-edges;
+  overflow-y: scroll;
+  padding: 0 16px
 }
 
 /* Centered content column, no own scroll */

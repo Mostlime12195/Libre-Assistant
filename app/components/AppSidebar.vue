@@ -88,11 +88,11 @@ async function handleDeleteConversation(id) {
     <div :class="['sidebar', { active: props.isOpen }]">
       <div class="sidebar-header">
         <button class="close-button" aria-label="Close sidebar" @click="closeSidebar">
-          <Icon icon="material-symbols:side-navigation" width="28" height="28" />
+          <Icon icon="material-symbols:side-navigation" width="24" height="24" />
         </button>
         <span class="sidebar-title">Chats</span>
         <button class="settings-button" aria-label="Open settings" @click="$emit('openSettings')">
-          <Icon icon="material-symbols:settings" width="28" height="28" />
+          <Icon icon="material-symbols:settings" width="24" height="24" />
         </button>
       </div>
       <button id="new-chat-button" class="new-chat-btn" @click="handleNewConversation">
@@ -157,7 +157,6 @@ async function handleDeleteConversation(id) {
   font-size: 1.1em;
   font-weight: 600;
   color: inherit;
-  padding-left: 0;
 }
 
 #new-chat-button {
@@ -171,7 +170,8 @@ async function handleDeleteConversation(id) {
   color: var(--primary-foreground);
   border: none;
   border-radius: 8px;
-  padding: 10px 0;
+  height: 36px;
+  padding: 0;
   font-size: 1em;
   font-weight: 600;
   transition:
@@ -281,10 +281,17 @@ async function handleDeleteConversation(id) {
 
 .settings-button {
   border-radius: 8px;
-  height: 44px;
-  width: 44px;
+  height: 36px;
+  width: 36px;
   transition: background 0.18s;
   flex-shrink: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .settings-button:hover {
@@ -293,8 +300,8 @@ async function handleDeleteConversation(id) {
 
 .close-button {
   border-radius: 8px;
-  height: 44px;
-  width: 44px;
+  height: 36px;
+  width: 36px;
   background: none;
   border: none;
   cursor: pointer;
@@ -321,7 +328,7 @@ async function handleDeleteConversation(id) {
   }
 }
 
-@media (max-width: 950px) {
+@media (max-width: 949px) {
   .sidebar {
     position: fixed;
     width: 80vw;
@@ -335,10 +342,6 @@ async function handleDeleteConversation(id) {
 }
 
 @media (max-width: 600px) {
-  .sidebar-title {
-    padding-left: 48px;
-  }
-
   .conversation-button {
     font-size: 0.9em;
   }

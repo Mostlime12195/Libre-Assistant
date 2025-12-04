@@ -12,47 +12,67 @@
 :root {
   /* ----------------- LIGHT THEME (warmer + grayer) ----------------- */
   /* Page & surfaces */
-  --bg: #ebe7e2; /* soft, neutral gray canvas */
-  --surface: #dbd4d1; /* cards, panels, app surfaces */
-  --elevated-surface: #e6dfdc; /* slightly tinted surface for grouped panels/inputs */
+  --bg: #ebe7e2;
+  /* soft, neutral gray canvas */
+  --surface: #dbd4d1;
+  /* cards, panels, app surfaces */
+  --elevated-surface: #e6dfdc;
+  /* slightly tinted surface for grouped panels/inputs */
 
   /* Text */
-  --text-primary: #3a2119; /* strong, neutral dark (gray-black) */
-  --text-secondary: #63564b; /* neutral secondary */
-  --text-muted: #80716b; /* placeholders, disabled labels */
+  --text-primary: #3a2119;
+  /* strong, neutral dark (gray-black) */
+  --text-secondary: #63564b;
+  /* neutral secondary */
+  --text-muted: #80716b;
+  /* placeholders, disabled labels */
 
   /* Borders & dividers */
-  --border: #cabdb6; /* clean gray divider */
-  --muted-border: #e6e7e8; /* very light grouping divider */
+  --border: #cabdb6;
+  /* clean gray divider */
+  --muted-border: #e6e7e8;
+  /* very light grouping divider */
 
   /* Primary (brand / main CTA) — warm, readable */
-  --primary: #c04a2c; /* warm burnt-sienna (use sparingly for CTAs) */
-  --primary-foreground: #ffffff; /* text/icon color when placed on --primary */
-  --primary-600: #9b3d23; /* hover / active */
-  --primary-800: #6f2a18; /* pressed/strong state */
+  --primary: #c04a2c;
+  /* warm burnt-sienna (use sparingly for CTAs) */
+  --primary-foreground: #ffffff;
+  /* text/icon color when placed on --primary */
+  --primary-600: #9b3d23;
+  /* hover / active */
+  --primary-800: #6f2a18;
+  /* pressed/strong state */
 
   /* Secondary / supporting accent */
-  --secondary: #b38b3b; /* desaturated warm mustard */
-  --secondary-600: #8f6d2e; /* hover/darker */
+  --secondary: #b38b3b;
+  /* desaturated warm mustard */
+  --secondary-600: #8f6d2e;
+  /* hover/darker */
 
   /* Accent colors (use sparingly for highlights) */
-  --accent-warm: #f59e0b; /* lively warm accent */
-  --accent-soft: #d6a95a; /* softer warm highlight */
+  --accent-warm: #f59e0b;
+  /* lively warm accent */
+  --accent-soft: #d6a95a;
+  /* softer warm highlight */
 
   /* Feedback / semantic statuses */
-  --success: #15803d; /* success states (slightly muted green) */
-  --warning: #b45309; /* warm warning */
-  --danger: #b91c1c; /* error (stronger, desaturated red) */
-  --info: #0f766e; /* muted teal/info */
+  --success: #15803d;
+  /* success states (slightly muted green) */
+  --warning: #b45309;
+  /* warm warning */
+  --danger: #b91c1c;
+  /* error (stronger, desaturated red) */
+  --info: #0f766e;
+  /* muted teal/info */
 
   /* Shadows & focus rings */
-  --shadow-elev: rgba(2, 6, 23, 0.06); /* subtle soft shadow */
-  --focus-ring: rgba(
-    192,
-    74,
-    44,
-    0.12
-  ); /* warmer focus ring tinted with primary */
+  --shadow-elev: rgba(2, 6, 23, 0.06);
+  /* subtle soft shadow */
+  --focus-ring: rgba(192,
+      74,
+      44,
+      0.12);
+  /* warmer focus ring tinted with primary */
 
   /* Component-specific variables */
   --bg-primary: var(--surface);
@@ -135,32 +155,46 @@
   color-scheme: dark;
 
   /* Page & surfaces */
-  --bg: #1c1919; /* deep neutral background (very dark gray) */
-  --surface: #131110; /* main surface for cards/panels */
-  --elevated-surface: #22201e; /* slightly lighter elevated surface */
+  --bg: #1c1919;
+  /* deep neutral background (very dark gray) */
+  --surface: #131110;
+  /* main surface for cards/panels */
+  --elevated-surface: #22201e;
+  /* slightly lighter elevated surface */
 
   /* Text */
-  --text-primary: #e6e6e7; /* light, neutral text */
-  --text-secondary: #a3a3a6; /* desaturated secondary */
-  --text-muted: #737373; /* muted labels */
+  --text-primary: #e6e6e7;
+  /* light, neutral text */
+  --text-secondary: #a3a3a6;
+  /* desaturated secondary */
+  --text-muted: #737373;
+  /* muted labels */
 
   /* Borders & dividers */
-  --border: rgba(230, 230, 230, 0.06); /* subtle divider on dark */
+  --border: rgba(230, 230, 230, 0.06);
+  /* subtle divider on dark */
   --muted-border: rgba(230, 230, 230, 0.04);
 
   /* Primary (warm, visible on dark surfaces) */
-  --primary: #e06a3a; /* warm orange that pops on dark */
-  --primary-foreground: #ffffff; /* always white on dark primary */
-  --primary-600: #b34e2b; /* hover/darker */
-  --primary-800: #7a321d; /* pressed/strong */
+  --primary: #e06a3a;
+  /* warm orange that pops on dark */
+  --primary-foreground: #ffffff;
+  /* always white on dark primary */
+  --primary-600: #b34e2b;
+  /* hover/darker */
+  --primary-800: #7a321d;
+  /* pressed/strong */
 
   /* Secondary supporting accent */
-  --secondary: #9e7a3a; /* muted golden-olive */
+  --secondary: #9e7a3a;
+  /* muted golden-olive */
   --secondary-600: #7f6130;
 
   /* Accents & feedback */
-  --accent-warm: #f59e0b; /* warm accent */
-  --accent-soft: #f3dfa6; /* softer warm highlight */
+  --accent-warm: #f59e0b;
+  /* warm accent */
+  --accent-soft: #f3dfa6;
+  /* softer warm highlight */
 
   --success: #34d399;
   --warning: #f59e0b;
@@ -169,7 +203,8 @@
 
   /* Shadows & focus */
   --shadow-elev: rgba(2, 6, 23, 0.2);
-  --focus-ring: rgba(224, 106, 58, 0.14); /* warmer focus */
+  --focus-ring: rgba(224, 106, 58, 0.14);
+  /* warmer focus */
 
   /* Component-specific variables for dark mode */
   --bg-primary: var(--surface);
@@ -418,8 +453,8 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   border-radius: 8px;
   background: none;
   border: none;
@@ -438,7 +473,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 16px;
+  padding: 6px 12px;
   font-size: 1rem;
   font-weight: 500;
   color: var(--btn-model-selector-text);
@@ -448,6 +483,7 @@ body {
   white-space: nowrap;
   cursor: pointer;
   transition: background 0.18s;
+  height: 36px;
 }
 
 .model-selector-btn:hover {

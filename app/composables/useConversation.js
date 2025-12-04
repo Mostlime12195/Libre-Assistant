@@ -108,12 +108,16 @@ export function useConversation() {
 
   // Function to send a message to the AI and get a response (for initial messages)
   async function sendInitialMessageToAI(messageContent) {
+    // Set loading state and create new abort controller
+    controller.value = new AbortController();
+    isLoading.value = true;
+
     // Check if the last message is already the user's message with the same content
     // This prevents duplication when called from index.vue after createNewConversationWithMessage
     let lastMessage = messages.value.length > 0 ? messages.value[messages.value.length - 1] : null;
     let userMessageAlreadyExists = lastMessage &&
-                                   lastMessage.role === "user" &&
-                                   lastMessage.content === messageContent;
+      lastMessage.role === "user" &&
+      lastMessage.content === messageContent;
 
     // Add the user's message to the messages array if it doesn't already exist
     if (!userMessageAlreadyExists) {
@@ -163,21 +167,40 @@ export function useConversation() {
         content: (assistantMsg.content ? assistantMsg.content + "\n\n" : "") + "Error: No AI model selected.",
         complete: true
       });
+      isLoading.value = false;
       return;
     }
 
-    // Construct model parameters (simplified for this function)
+    // Construct model parameters with proper reasoning handling
+    const savedReasoningEffort = settingsManager.getModelSetting(selectedModelDetails.id, "reasoning_effort") ||
+      (selectedModelDetails.extra_parameters?.reasoning_effort?.[1] || "default");
+
     const parameterConfig = settingsManager.settings.parameter_config || { ...DEFAULT_PARAMETERS };
+
+    // Check if this model has toggleable reasoning [true, false]
+    const hasToggleableReasoning = Array.isArray(selectedModelDetails.reasoning) &&
+      selectedModelDetails.reasoning.length === 2 &&
+      selectedModelDetails.reasoning[0] === true &&
+      selectedModelDetails.reasoning[1] === false;
 
     const model_parameters = {
       ...parameterConfig,
-      ...selectedModelDetails.extra_parameters
+      ...selectedModelDetails.extra_parameters,
+      reasoning: hasToggleableReasoning
+        ? {
+          effort: savedReasoningEffort,
+          enabled: savedReasoningEffort !== 'none'
+        }
+        : { effort: savedReasoningEffort }
     };
 
     try {
+      // Pass only the conversation history BEFORE the current user message
+      // handleIncomingMessage will add the current user message itself via the query parameter
+      // This prevents the user message from being duplicated in the request
       const streamGenerator = handleIncomingMessage(
         messageContent,
-        messages.value.filter(msg => msg.complete).map(msg => ({
+        messages.value.filter(msg => msg.complete && msg.content !== messageContent).map(msg => ({
           role: msg.role,
           content: msg.content
         })),
@@ -205,8 +228,8 @@ export function useConversation() {
           }
 
           if (chunk.content &&
-              assistantMsg.reasoningStartTime !== null &&
-              assistantMsg.reasoningEndTime === null) {
+            assistantMsg.reasoningStartTime !== null &&
+            assistantMsg.reasoningEndTime === null) {
             assistantMsg.reasoningEndTime = new Date();
           }
         }
@@ -327,6 +350,9 @@ export function useConversation() {
             (assistantMsg.errorDetails.status ? ` HTTP ${assistantMsg.errorDetails.status}` : '')
         });
       }
+
+      // Reset loading state
+      isLoading.value = false;
 
       // Store messages if not in incognito mode
       if (!isIncognito.value) {

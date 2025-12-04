@@ -1,4 +1,4 @@
-import { ref, computed, nextTick } from 'vue';
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
 import localforage from 'localforage';
 import { createConversation as createNewConversation, storeMessages, deleteConversation as deleteConv } from './storeConversations';
 import { handleIncomingMessage } from './message';
@@ -7,6 +7,7 @@ import { addMemory, modifyMemory, deleteMemory, listMemory } from './memory';
 import DEFAULT_PARAMETERS from './defaultParameters';
 import { useSettings } from './useSettings';
 import { useGlobalIncognito } from './useGlobalIncognito';
+import { emitter } from './emitter';
 
 /**
  * Creates a centralized message manager for handling all chat message operations
@@ -36,6 +37,21 @@ export function useMessagesManager(chatPanel) {
   // Computed properties
   const hasMessages = computed(() => messages.value.length > 0);
   const isEmptyConversation = computed(() => !currConvo.value && messages.value.length === 0);
+
+  // Set up event listener for title updates
+  const handleTitleUpdate = ({ conversationId, title }) => {
+    if (currConvo.value === conversationId) {
+      conversationTitle.value = title;
+    }
+  };
+
+  onMounted(() => {
+    emitter.on('conversationTitleUpdated', handleTitleUpdate);
+  });
+
+  onUnmounted(() => {
+    emitter.off('conversationTitleUpdated', handleTitleUpdate);
+  });
 
   // Method to update chat panel reference (for dynamic pages)
   function setChatPanel(newChatPanel) {
@@ -168,25 +184,28 @@ export function useMessagesManager(chatPanel) {
 
     // Check if this model has toggleable reasoning [true, false]
     const hasToggleableReasoning = Array.isArray(selectedModelDetails.reasoning) &&
-                                   selectedModelDetails.reasoning.length === 2 &&
-                                   selectedModelDetails.reasoning[0] === true &&
-                                   selectedModelDetails.reasoning[1] === false;
+      selectedModelDetails.reasoning.length === 2 &&
+      selectedModelDetails.reasoning[0] === true &&
+      selectedModelDetails.reasoning[1] === false;
 
     const model_parameters = {
       ...parameterConfig,
       ...selectedModelDetails.extra_parameters,
       reasoning: hasToggleableReasoning
         ? {
-            effort: savedReasoningEffort,
-            enabled: savedReasoningEffort !== 'none'
-          }
+          effort: savedReasoningEffort,
+          enabled: savedReasoningEffort !== 'none'
+        }
         : { effort: savedReasoningEffort }
     };
 
     try {
+      // Pass only the conversation history BEFORE the current user message
+      // handleIncomingMessage will add the current user message itself via the query parameter
+      // This prevents the user message from being duplicated in the request
       const streamGenerator = handleIncomingMessage(
         message,
-        messages.value.filter(msg => msg.complete).map(msg => ({
+        messages.value.filter(msg => msg.complete && msg.content !== messageToStore).map(msg => ({
           role: msg.role,
           content: msg.content
         })),

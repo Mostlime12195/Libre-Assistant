@@ -127,14 +127,14 @@ onMounted(async () => {
   await settingsManager.loadSettings();
   // Set sidebar open state based on window width (only in browser)
   if (typeof window !== 'undefined') {
-    sidebarOpen.value = window.innerWidth > 900;
+    sidebarOpen.value = window.innerWidth >= 950;
   }
 });
 
 function toggleSidebar() {
   sidebarOpen.value = !sidebarOpen.value;
   // On mobile, when closing the sidebar, we might want to ensure focus returns to the main content
-  if (!sidebarOpen.value && typeof window !== 'undefined' && window.innerWidth < 900) {
+  if (!sidebarOpen.value && typeof window !== 'undefined' && window.innerWidth < 950) {
     // Focus on main content area for accessibility
     nextTick(() => {
       const mainContent = document.querySelector('.content-wrapper');
@@ -258,7 +258,7 @@ function sendMessage(message, originalMessage = null) {
 }
 
 /* Sidebar open shifts main content right by sidebar width (280px) */
-@media (min-width: 900px) {
+@media (min-width: 950px) {
   .main-container.sidebar-open {
     margin-left: 280px;
   }
@@ -325,7 +325,7 @@ function sendMessage(message, originalMessage = null) {
 }
 
 /* Mobile-specific styles - use overlay instead of transform for better positioning */
-@media (max-width: 900px) {
+@media (max-width: 949px) {
   .main-container {
     transform: none;
     /* Remove transforms that interfere with fixed positioning */
