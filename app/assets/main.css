@@ -1,5 +1,6 @@
 @import "./base.css";
 @import "./code-blocks.css";
+@import "katex/dist/katex.min.css";
 
 #app {
   padding: 0;
