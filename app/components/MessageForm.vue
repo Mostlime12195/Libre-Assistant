@@ -11,6 +11,7 @@ import { useWindowSize } from "@vueuse/core";
 import Logo from "./Logo.vue";
 import BottomSheetModelSelector from "./BottomSheetModelSelector.vue";
 import { useAttachments } from "~/composables/useAttachments";
+import { findModelById } from "~/composables/availableModels";
 
 // Define component properties and emitted events
 const props = defineProps({
@@ -59,21 +60,6 @@ const trimmedMessage = computed(() => inputMessage.value.trim());
 const selectedModel = computed(() => {
   if (!props.selectedModelId || !props.availableModels) return null;
 
-  // Helper function to find a model by ID, including nested models in categories
-  function findModelById(models, id) {
-    for (const model of models) {
-      if (model.id === id) {
-        return model;
-      }
-      if (model.models && Array.isArray(model.models)) {
-        const found = findModelById(model.models, id);
-        if (found) {
-          return found;
-        }
-      }
-    }
-    return null;
-  }
 
   return findModelById(props.availableModels, props.selectedModelId);
 });

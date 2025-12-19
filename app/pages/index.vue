@@ -108,40 +108,15 @@ const { setIsScrolledTop } = useGlobalScrollStatus();
 
 onMounted(async () => {
   await settingsManager.loadSettings();
-  // Make sure selected_model_id is set to a default if not already set
-  if (!settingsManager.settings.selected_model_id) {
-    settingsManager.settings.selected_model_id = "qwen/qwen3-32b"; // Default model ID
-  }
+  // No manual default setting needed here as Settings class handles it now
+
 
   // Set the chat panel reference (used by useConversation for scrollToEnd, etc.)
   setChatPanel(chatPanelRef.value);
 });
 
-/**
- * Computed property to get the name of the currently selected model from settings.
- * This will be displayed in the MessageForm.
- */
-const selectedModelName = computed(() => {
-  // Helper function to find a model by ID, including nested models in categories
-  function findModelById(models, id) {
-    for (const model of models) {
-      if (model.id === id) {
-        return model;
-      }
-      if (model.models && Array.isArray(model.models)) {
-        const found = findModelById(model.models, id);
-        if (found) {
-          return found;
-        }
-      }
-    }
-    return null;
-  }
-
-  // Find the model in our available models and return its name
-  const selectedModel = findModelById(availableModels, settingsManager.settings.selected_model_id);
-  return selectedModel ? selectedModel.name : 'Loading...';
-});
+// Use selectedModelName from settingsManager
+const selectedModelName = computed(() => settingsManager.selectedModelName);
 
 /**
  * Handles scroll events from the ChatPanel component.

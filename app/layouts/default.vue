@@ -82,6 +82,10 @@ const { getIsScrolledTop } = useGlobalScrollStatus();
 // Use global incognito state
 const { isIncognito, toggleIncognito: globalToggleIncognito } = useGlobalIncognito();
 
+// Compute selectedModelName from settingsManager to maintain reactivity
+const selectedModelName = computed(() => settingsManager.selectedModelName);
+const selectedModelId = computed(() => settingsManager.settings.selected_model_id);
+
 // Initialize shortcut keys
 const keys = useMagicKeys()
 
@@ -173,39 +177,7 @@ function handleNewConversation() {
   console.log("New conversation requested");
 }
 
-/**
- * Computed property to get the name of the currently selected model from settings.
- * This will be displayed in the TopBar.
- */
-const selectedModelName = computed(() => {
-  // Helper function to find a model by ID, including nested models in categories
-  function findModelById(models, id) {
-    for (const model of models) {
-      if (model.id === id) {
-        return model;
-      }
-      if (model.models && Array.isArray(model.models)) {
-        const found = findModelById(model.models, id);
-        if (found) {
-          return found;
-        }
-      }
-    }
-    return null;
-  }
 
-  // Find the model in our available models and return its name
-  const selectedModel = findModelById(availableModels, settingsManager.settings.selected_model_id);
-  return selectedModel ? selectedModel.name : 'Loading...';
-});
-
-/**
- * Computed property to get the ID of the currently selected model from settings.
- * This will be used to highlight the selected model in the TopBar.
- */
-const selectedModelId = computed(() => {
-  return settingsManager.settings.selected_model_id || "";
-});
 
 /**
  * Handles model selection from the TopBar component.

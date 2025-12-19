@@ -4,8 +4,7 @@ import { useHead } from '@unhead/vue';
 import localforage from 'localforage';
 import { createConversation as storeCreateConversation, storeMessages, deleteConversation as deleteConv } from './storeConversations';
 import { handleIncomingMessage } from './message';
-import { availableModels } from './availableModels';
-import { addMemory, modifyMemory, deleteMemory, listMemory } from './memory';
+import { availableModels, findModelById } from './availableModels';
 import DEFAULT_PARAMETERS from './defaultParameters';
 import { useSettings } from './useSettings';
 import { useMessagesManager } from './messagesManager';
@@ -166,7 +165,7 @@ export function useConversation() {
     messages.value.push(assistantMsg);
 
     // Get current model details
-    const selectedModelDetails = findModelById(settingsManager.availableModels, settingsManager.settings.selected_model_id);
+    const selectedModelDetails = findModelById(availableModels, settingsManager.settings.selected_model_id);
 
     if (!selectedModelDetails) {
       console.error("No model selected or model details not found.");
@@ -438,21 +437,6 @@ export function useConversation() {
     }
   }
 
-  // Helper function to find a model by ID
-  function findModelById(models, id) {
-    for (const model of models) {
-      if (model.id === id) {
-        return model;
-      }
-      if (model.models && Array.isArray(model.models)) {
-        const found = findModelById(model.models, id);
-        if (found) {
-          return found;
-        }
-      }
-    }
-    return null;
-  }
 
   return {
     // State

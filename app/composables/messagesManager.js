@@ -2,7 +2,7 @@ import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
 import localforage from 'localforage';
 import { createConversation as createNewConversation, storeMessages, deleteConversation as deleteConv } from './storeConversations';
 import { handleIncomingMessage } from './message';
-import { availableModels } from './availableModels';
+import { availableModels, findModelById } from './availableModels';
 import { addMemory, modifyMemory, deleteMemory, listMemory } from './memory';
 import DEFAULT_PARAMETERS from './defaultParameters';
 import { useSettings } from './useSettings';
@@ -31,8 +31,6 @@ export function useMessagesManager(chatPanel) {
   const isTyping = ref(false);
   const chatLoading = ref(false);
 
-  // Make availableModels accessible
-  settingsManager.availableModels = availableModels;
 
   // Computed properties
   const hasMessages = computed(() => messages.value.length > 0);
@@ -174,7 +172,7 @@ export function useMessagesManager(chatPanel) {
     });
 
     // Get current model details
-    const selectedModelDetails = findModelById(settingsManager.availableModels, settingsManager.settings.selected_model_id);
+    const selectedModelDetails = findModelById(availableModels, settingsManager.settings.selected_model_id);
 
     if (!selectedModelDetails) {
       console.error("No model selected or model details not found. Aborting message send.");
@@ -519,26 +517,6 @@ export function useMessagesManager(chatPanel) {
     }
   }
 
-  /**
-   * Helper function to find a model by ID
-   * @param {Array} models - Array of models to search
-   * @param {string} id - Model ID to find
-   * @returns {Object|null} Found model or null
-   */
-  function findModelById(models, id) {
-    for (const model of models) {
-      if (model.id === id) {
-        return model;
-      }
-      if (model.models && Array.isArray(model.models)) {
-        const found = findModelById(model.models, id);
-        if (found) {
-          return found;
-        }
-      }
-    }
-    return null;
-  }
 
   /**
    * Changes the current conversation

@@ -11,6 +11,30 @@
  * For models with [true, false], the API will receive reasoning: {enabled: true/false}
  * based on toggle state.
  */
+export const DEFAULT_MODEL_ID = "moonshotai/kimi-k2-0905";
+
+/**
+ * Finds a model by its ID in the available models list, including nested categories.
+ * @param {Array} models - The list of models to search.
+ * @param {string} id - The ID of the model to find.
+ * @returns {Object|null} The found model object or null.
+ */
+export function findModelById(models, id) {
+  if (!models || !Array.isArray(models)) return null;
+  for (const item of models) {
+    if (item.id === id) {
+      return item;
+    }
+    if (item.models && Array.isArray(item.models)) {
+      const found = findModelById(item.models, id);
+      if (found) {
+        return found;
+      }
+    }
+  }
+  return null;
+}
+
 export const availableModels = [
   {
     category: "Moonshot AI",

@@ -4,26 +4,11 @@
  * and streaming responses using manual fetch() processing.
  */
 
-import { availableModels } from '~/composables/availableModels';
+import { availableModels, findModelById, DEFAULT_MODEL_ID } from '~/composables/availableModels';
 import { generateSystemPrompt } from '~/composables/systemPrompt';
 import { findRelevantMemories } from '~/composables/memory';
 import { toolManager } from '~/composables/toolsManager';
 
-// Helper function to find a model by ID, including nested models in categories
-function findModelById(models, id) {
-  for (const model of models) {
-    if (model.id === id) {
-      return model;
-    }
-    if (model.models && Array.isArray(model.models)) {
-      const found = findModelById(model.models, id);
-      if (found) {
-        return found;
-      }
-    }
-  }
-  return null;
-}
 
 /**
  * Main entry point for processing all incoming user messages for the API interface.
@@ -47,7 +32,7 @@ export async function* handleIncomingMessage(
   query,
   plainMessages,
   controller,
-  selectedModel = "moonshotai/kimi-k2-0905",
+  selectedModel = DEFAULT_MODEL_ID,
   modelParameters = {},
   settings = {},
   toolNames = [],

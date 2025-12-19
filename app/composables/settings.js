@@ -1,5 +1,6 @@
 import localforage from "localforage";
 import { reactive } from "vue";
+import { availableModels, findModelById, DEFAULT_MODEL_ID } from './availableModels';
 import DEFAULT_PARAMETERS from './defaultParameters';
 
 /**
@@ -21,7 +22,7 @@ class Settings {
       global_memory_enabled: true, // Whether global memory is enabled
 
       // --- Model Settings ---
-      selected_model_id: "moonshotai/kimi-k2-instruct-0905", // Default model ID
+      selected_model_id: DEFAULT_MODEL_ID, // Default model ID
 
       // --- Search Settings ---
       search_enabled: false, // Whether search is enabled by default
@@ -43,7 +44,7 @@ class Settings {
     this.defaultSettings = {
       version: 2,
       global_memory_enabled: true, // Add default value for global memory
-      selected_model_id: "moonshotai/kimi-k2-instruct-0905", // Default model ID
+      selected_model_id: DEFAULT_MODEL_ID, // Default model ID
       search_enabled: false, // Default value for search setting
       model_settings: {}, // Default value for model settings
       parameter_config: { ...DEFAULT_PARAMETERS },
@@ -107,6 +108,10 @@ class Settings {
 
         // Then deep merge saved settings over it to apply user's preferences
         this._deepMergeReactive(mergedSettings, savedSettings);
+
+        if (mergedSettings.selected_model_id === "moonshotai/kimi-k2-instruct-0905" || !mergedSettings.selected_model_id) {
+          mergedSettings.selected_model_id = DEFAULT_MODEL_ID;
+        }
 
         // Migration: If search_enabled is true and grounding parameter doesn't exist yet,
         // set grounding to true to preserve user's previous search preference
@@ -224,6 +229,20 @@ class Settings {
 
     console.log("Settings reset to default.");
     await this.saveSettings();
+  }
+
+  /**
+   * Computed property to get the currently selected model object
+   */
+  get selectedModel() {
+    return findModelById(availableModels, this.settings.selected_model_id);
+  }
+
+  /**
+   * Computed property to get the name of the currently selected model
+   */
+  get selectedModelName() {
+    return this.selectedModel ? this.selectedModel.name : 'Loading...';
   }
 }
 
