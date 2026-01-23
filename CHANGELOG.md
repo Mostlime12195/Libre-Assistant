@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-01-23
+
+### Added
+- Added limits (48 message requests per day, 8 image generations per day)
+- Added ability to add your own HackAI API key with no limits
+- Added message branching with editing/regenerating messages
+
+### Fixed
+- Kimi K2 non-reasoning now functions as intended and does not route to Kimi K2 reasoning
+- Errors will now be visible to the user for enhanced debugging
+- Removed deprecated models (Gemini 3 Pro Preview, Gemini 3 Pro Image Preview)
+- Enhanced visual polish
+
+
 ## [0.5.0] - 2026-01-07
 
 ### Added

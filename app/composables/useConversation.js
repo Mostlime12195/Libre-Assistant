@@ -1,4 +1,4 @@
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, toRaw } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useHead } from '@unhead/vue';
 import { createConversation as storeCreateConversation } from './storeConversations';
@@ -23,6 +23,9 @@ export function useConversation() {
   // Destructure commonly used properties from messagesManager
   const {
     messages,
+    visibleMessages,
+    branchPath,
+    branchInfo,
     isLoading,
     controller,
     currConvo,
@@ -31,6 +34,9 @@ export function useConversation() {
     isTyping,
     chatLoading,
     sendMessage,
+    editUserMessage,
+    regenerateAssistantMessage,
+    navigateBranch,
     changeConversation,
     deleteConversation,
     newConversation,
@@ -94,13 +100,16 @@ export function useConversation() {
       })),
       timestamp: new Date(),
       complete: true,
+      parentId: null,
+      branchIndex: 0
     };
 
     // Add the message to the current messages
     messages.value.push(initialUserMessage);
 
     // Create the conversation in storage with this message - using the storeConversations function
-    const conversationId = await storeCreateConversation(messages.value, new Date());
+    // Use toRaw to ensure we're not sending a Proxy to IndexedDB
+    const conversationId = await storeCreateConversation(toRaw(messages.value), new Date());
 
     // Update current conversation to point to the new one
     currConvo.value = conversationId;
@@ -113,6 +122,9 @@ export function useConversation() {
   return {
     // State
     messages,
+    visibleMessages,
+    branchPath,
+    branchInfo,
     isLoading,
     controller,
     currConvo,
@@ -126,6 +138,9 @@ export function useConversation() {
 
     // Methods
     sendMessage,
+    editUserMessage,
+    regenerateAssistantMessage,
+    navigateBranch,
     changeConversation,
     deleteConversation,
     newConversation,

@@ -1,6 +1,6 @@
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
+import { ref, computed, nextTick, onMounted, onUnmounted, toRaw } from 'vue';
 import localforage from 'localforage';
-import { createConversation as createNewConversation, storeMessages, deleteConversation as deleteConv } from './storeConversations';
+import { createConversation as createNewConversation, storeMessages, deleteConversation as deleteConv, updateBranchPath, loadConversation } from './storeConversations';
 import { handleIncomingMessage } from './message';
 import { availableModels, findModelById } from './availableModels';
 import { addMemory, modifyMemory, deleteMemory } from './memory';
@@ -9,6 +9,14 @@ import { useSettings } from './useSettings';
 import { useGlobalIncognito } from './useGlobalIncognito';
 import { emitter } from './emitter';
 import { PartsBuilder, TimingTracker } from './partsBuilder';
+import { useRateLimiter } from './rateLimiter';
+import {
+  getMessagesForBranchPath,
+  createBranch,
+  switchBranch,
+  buildSiblingInfoMap,
+  calculateBranchPath
+} from './branchManager';
 
 /**
  * Creates a centralized message manager for handling all chat message operations
@@ -25,6 +33,7 @@ export function useMessagesManager(chatPanel) {
 
   // Reactive state for messages
   const messages = ref([]);
+  const branchPath = ref([]);
   const isLoading = ref(false);
   const controller = ref(new AbortController());
   const currConvo = ref('');
@@ -34,7 +43,16 @@ export function useMessagesManager(chatPanel) {
 
 
   // Computed properties
-  const hasMessages = computed(() => messages.value.length > 0);
+  const visibleMessages = computed(() => {
+    if (isIncognito.value) return messages.value;
+    return getMessagesForBranchPath(messages.value, branchPath.value);
+  });
+
+  const branchInfo = computed(() => {
+    return buildSiblingInfoMap(messages.value, visibleMessages.value);
+  });
+
+  const hasMessages = computed(() => visibleMessages.value.length > 0);
   const isEmptyConversation = computed(() => !currConvo.value && messages.value.length === 0);
 
   // Set up event listener for title updates
@@ -73,6 +91,11 @@ export function useMessagesManager(chatPanel) {
   function addUserMessage(content, attachments = []) {
     if (!content.trim() && attachments.length === 0) return;
 
+    // Determine parent message (the last message in the currently visible branch)
+    const parentId = visibleMessages.value.length > 0
+      ? visibleMessages.value[visibleMessages.value.length - 1].id
+      : null;
+
     const userMessage = {
       id: generateId(),
       role: "user",
@@ -86,9 +109,16 @@ export function useMessagesManager(chatPanel) {
       })),
       timestamp: new Date(),
       complete: true,
+      parentId: parentId,
+      branchIndex: 0 // Default to first branch when adding a new message
     };
 
     messages.value.push(userMessage);
+
+    // If not in incognito, update branch path to include this new message if needed
+    if (!isIncognito.value) {
+      branchPath.value = calculateBranchPath(messages.value, userMessage.id);
+    }
   }
 
   /**
@@ -96,6 +126,11 @@ export function useMessagesManager(chatPanel) {
    * @returns {Object} The created assistant message object
    */
   function createAssistantMessage() {
+    // Determine parent message (the last message in the currently visible branch)
+    const parentId = visibleMessages.value.length > 0
+      ? visibleMessages.value[visibleMessages.value.length - 1].id
+      : null;
+
     const assistantMsg = {
       id: generateId(),
       role: "assistant",
@@ -104,6 +139,8 @@ export function useMessagesManager(chatPanel) {
       tool_calls: [],
       timestamp: new Date(),
       complete: false,
+      parentId: parentId,
+      branchIndex: 0,
       // New timing properties
       apiCallTime: new Date(), // Time when the API was called
       firstTokenTime: null,    // Time when the first token was received
@@ -144,11 +181,34 @@ export function useMessagesManager(chatPanel) {
    * @param {Array} attachments - Optional array of file attachments
    * @param {Object} options - Optional settings
    * @param {boolean} options.skipUserMessage - If true, don't add user message (already exists in messages array)
+   * @param {string} options.parentId - Optional explicit parent ID for the assistant message
    */
   async function sendMessage(message, originalMessage = null, attachments = [], options = {}) {
-    const { skipUserMessage = false } = options;
+    const { skipUserMessage = false, parentId: explicitParentId = null } = options;
 
     if ((!message.trim() && attachments.length === 0) || isLoading.value) return;
+
+    // Check rate limit (only if not using custom API key)
+    if (!settingsManager.settings.custom_api_key) {
+      const rateLimiter = useRateLimiter();
+      const selectedModelId = settingsManager.settings.selected_model_id;
+      const limitCheck = rateLimiter.checkLimit(selectedModelId);
+
+      if (!limitCheck.canSend) {
+        // Create a temporary message to show the rate limit error
+        const tempAssistantMsg = createAssistantMessage();
+        updateAssistantMessage(tempAssistantMsg, {
+          content: `⚠️ **Rate Limit Reached**\n\n${limitCheck.error}\n\nYou can add your own Hack Club API key in Settings → General to bypass rate limits.`,
+          complete: true,
+          error: true,
+          errorDetails: { name: 'RateLimitError', message: limitCheck.error }
+        });
+        return;
+      }
+
+      // Record the request
+      rateLimiter.recordRequest(selectedModelId);
+    }
 
     controller.value = new AbortController();
     isLoading.value = true;
@@ -164,11 +224,16 @@ export function useMessagesManager(chatPanel) {
     // Create assistant message
     const assistantMsg = createAssistantMessage();
 
+    // If explicit parent was provided, override the default parent
+    if (explicitParentId) {
+      assistantMsg.parentId = explicitParentId;
+    }
+
     // Create conversation if needed
     if (!currConvo.value && !isIncognito.value) {
       currConvo.value = await createNewConversation(messages.value, new Date());
       if (currConvo.value) {
-        const convData = await localforage.getItem(`conversation_${currConvo.value}`);
+        const convData = await loadConversation(currConvo.value);
         conversationTitle.value = convData?.title || "";
       }
     }
@@ -220,16 +285,16 @@ export function useMessagesManager(chatPanel) {
     const timing = new TimingTracker(assistantMsg);
 
     try {
-      // Pass only the conversation history BEFORE the current user message
-      // handleIncomingMessage will add the current user message itself via the query parameter
-      // This prevents the user message from being duplicated in the request
-      // Pass full message objects so formatMessageForAPI can access all properties
-      console.log('[messagesManager.js] ========== START: About to create streamGenerator ==========');
+      // Pass only the conversation history BEFORE the current assistant message
+      // We use visibleMessages to ensure context consists only of current branch
+      const historyForAPI = visibleMessages.value.filter(msg =>
+        msg.complete && msg.id !== assistantMsg.id
+      );
 
       const streamGenerator = handleIncomingMessage(
         message,
-        messages.value.filter(msg => msg.complete && msg.content !== messageToStore),
-        controller.value,
+        historyForAPI.filter(msg => msg.id !== (skipUserMessage ? null : messages.value[messages.value.length - 2]?.id)),
+        controller.value, // Changed back to .value to match original logic
         settingsManager.settings.selected_model_id,
         model_parameters,
         settingsManager.settings,
@@ -238,11 +303,6 @@ export function useMessagesManager(chatPanel) {
         isIncognito.value,
         attachments  // Pass attachments to API
       );
-
-      console.log('[messagesManager.js] streamGenerator created successfully');
-      console.log('[messagesManager.js] streamGenerator type:', typeof streamGenerator);
-
-      console.log('[messagesManager.js] PartsBuilder initialized, about to enter for await loop');
 
       // Helper to update message with Vue reactivity
       const updateMessageReactivity = () => {
@@ -254,20 +314,7 @@ export function useMessagesManager(chatPanel) {
         messages.value.splice(messages.value.length - 1, 1, updatedMsg);
       };
 
-      console.log('[messagesManager.js] ========== ENTERING FOR AWAIT LOOP ==========');
-
       for await (const chunk of streamGenerator) {
-        console.log('[messagesManager.js] Chunk received:', JSON.stringify({
-          hasContent: chunk.content !== null && chunk.content !== undefined && chunk.content !== '',
-          contentType: typeof chunk.content,
-          contentValue: chunk.content,
-          hasImages: !!chunk.images,
-          imagesCount: chunk.images?.length || 0,
-          hasReasoning: chunk.reasoning !== null && chunk.reasoning !== undefined,
-          hasToolCalls: !!chunk.tool_calls && chunk.tool_calls.length > 0,
-          chunkKeys: Object.keys(chunk)
-        }));
-
         // Process content
         if (chunk.content) {
           partsBuilder.appendContent(chunk.content);
@@ -278,7 +325,6 @@ export function useMessagesManager(chatPanel) {
 
         // Process images
         if (chunk.images && chunk.images.length > 0) {
-          console.log('[messagesManager.js] Images found:', JSON.stringify(chunk.images, null, 2));
           for (const image of chunk.images) {
             partsBuilder.processImage(image);
           }
@@ -327,8 +373,13 @@ export function useMessagesManager(chatPanel) {
 
         // Process annotations from OpenRouter (for PDF reuse)
         if (chunk.annotations) {
-          console.log('[PDF Annotations] Received annotations:', chunk.annotations);
           assistantMsg.annotations = chunk.annotations;
+        }
+
+        // Process errors from the stream
+        if (chunk.error && chunk.errorDetails) {
+          assistantMsg.error = true;
+          assistantMsg.errorDetails = chunk.errorDetails;
         }
 
         // Update Vue reactivity
@@ -348,8 +399,13 @@ export function useMessagesManager(chatPanel) {
 
     } catch (error) {
       console.error('Error in stream processing:', error);
+      // Capture error details for UI display
+      assistantMsg.error = true;
+      assistantMsg.errorDetails = {
+        name: error.name || 'Error',
+        message: error.message || 'An unexpected error occurred'
+      };
     } finally {
-      console.log('[messagesManager.js] ========== FINALLY BLOCK ==========');
 
       // Ensure parts are stored from partsBuilder (in case of early error)
       if (!assistantMsg.parts || assistantMsg.parts.length === 0) {
@@ -417,11 +473,14 @@ export function useMessagesManager(chatPanel) {
         }
       }
 
-      // Handle error display
-      if (assistantMsg.complete && !assistantMsg.content && assistantMsg.errorDetails) {
+      // Handle error display - show errors even if there's partial content
+      if (assistantMsg.error && assistantMsg.errorDetails) {
+        const errorSuffix = `\n\n---\n⚠️ **Error:** ${assistantMsg.errorDetails.message}` +
+          (assistantMsg.errorDetails.status ? ` (HTTP ${assistantMsg.errorDetails.status})` : '');
         updateAssistantMessage(assistantMsg, {
-          content: `\n[ERROR: ${assistantMsg.errorDetails.message}]` +
-            (assistantMsg.errorDetails.status ? ` HTTP ${assistantMsg.errorDetails.status}` : '')
+          content: (assistantMsg.content || '') + errorSuffix,
+          error: true,
+          errorDetails: assistantMsg.errorDetails
         });
       }
 
@@ -429,7 +488,7 @@ export function useMessagesManager(chatPanel) {
 
       // Store messages if not in incognito mode
       if (!isIncognito.value) {
-        await storeMessages(currConvo.value, messages.value, new Date());
+        await storeMessages(currConvo.value, toRaw(messages.value), new Date());
       }
     }
   }
@@ -446,9 +505,10 @@ export function useMessagesManager(chatPanel) {
 
     chatLoading.value = true;
     messages.value = [];
+    branchPath.value = []; // Reset branch path
     currConvo.value = id;
 
-    const conv = await localforage.getItem(`conversation_${currConvo.value}`);
+    const conv = await loadConversation(id);
     if (conv?.messages) {
       messages.value = conv.messages.map(msg => {
         if (msg.role === 'assistant') {
@@ -468,12 +528,102 @@ export function useMessagesManager(chatPanel) {
         }
         return msg;
       });
+      branchPath.value = conv.branchPath || [];
     } else {
       messages.value = [];
+      branchPath.value = [];
     }
 
     conversationTitle.value = conv?.title || '';
     chatLoading.value = false;
+  }
+
+  /**
+   * Edits a user message and creates a new branch
+   * @param {string} messageId - The ID of the message to edit
+   * @param {string} newContent - The new content for the message
+   * @param {Array} attachments - Optional new attachments
+   */
+  async function editUserMessage(messageId, newContent, attachments = []) {
+    const existingMsg = messages.value.find(m => m.id === messageId);
+    if (!existingMsg) return;
+
+    // Create a branch from this message with new content
+    const branchResult = createBranch(messages.value, messageId, {
+      role: "user",
+      content: newContent,
+      attachments: attachments,
+      complete: true
+    });
+
+    messages.value = branchResult.messages;
+    branchPath.value = branchResult.branchPath;
+
+    // Persist changes
+    if (!isIncognito.value) {
+      await storeMessages(currConvo.value, toRaw(messages.value), new Date());
+      await updateBranchPath(currConvo.value, [...toRaw(branchPath.value)]);
+    }
+
+    // Trigger AI response for the new branch
+    await sendMessage(newContent, null, attachments, { skipUserMessage: true });
+  }
+
+  /**
+   * Regenerates an assistant message and creates a new branch
+   * @param {string} messageId - The assistant message to regenerate
+   */
+  async function regenerateAssistantMessage(messageId) {
+    const assistantMsg = messages.value.find(m => m.id === messageId);
+    if (!assistantMsg || assistantMsg.role !== 'assistant') return;
+
+    // Find the parent user message to get the prompt
+    const userMsg = messages.value.find(m => m.id === assistantMsg.parentId);
+    if (!userMsg) return;
+
+    // First, let's update the branch path to fork at this point
+    const visibleChain = getMessagesForBranchPath(messages.value, branchPath.value);
+
+    // CreateBranch logic for the assistant message
+    const branchResult = createBranch(messages.value, assistantMsg.id, {
+      role: "assistant",
+      content: "",
+      complete: false,
+      timestamp: new Date()
+    });
+
+    // Remove the placeholder message createBranch added, sendMessage will create its own
+    const tempMsgId = branchResult.newMessage.id;
+    messages.value = branchResult.messages.filter(m => m.id !== tempMsgId);
+    branchPath.value = branchResult.branchPath;
+
+    if (!isIncognito.value) {
+      await updateBranchPath(currConvo.value, [...toRaw(branchPath.value)]);
+    }
+
+    // Send the message using the parent user message's content
+    await sendMessage(userMsg.content, null, userMsg.attachments || [], {
+      skipUserMessage: true,
+      parentId: userMsg.id
+    });
+  }
+
+  /**
+   * Navigates to a different branch
+   * @param {string} messageId - The message ID at the fork
+   * @param {number} direction - -1 for previous, 1 for next
+   */
+  async function navigateBranch(messageId, direction) {
+    const info = branchInfo.value.get(messageId);
+    if (!info) return;
+
+    const newIndex = (info.current + direction + info.total) % info.total;
+
+    branchPath.value = switchBranch(branchPath.value, info.forkIndex, newIndex);
+
+    if (!isIncognito.value) {
+      await updateBranchPath(currConvo.value, [...toRaw(branchPath.value)]);
+    }
   }
 
   /**
@@ -512,8 +662,11 @@ export function useMessagesManager(chatPanel) {
 
   // Return the reactive state and methods
   return {
-    // Reactive state
+    // State
     messages,
+    visibleMessages,
+    branchPath,
+    branchInfo,
     isLoading,
     controller,
     currConvo,
@@ -533,6 +686,9 @@ export function useMessagesManager(chatPanel) {
     newConversation,
     toggleIncognito,
     generateId,
-    setChatPanel
+    setChatPanel,
+    editUserMessage,
+    regenerateAssistantMessage,
+    navigateBranch
   };
 }

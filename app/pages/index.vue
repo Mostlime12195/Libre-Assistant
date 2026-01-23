@@ -4,14 +4,18 @@
       <ChatPanel
         ref="chatPanelRef"
         :curr-convo="currConvo"
-        :curr-messages="messages"
-        :isLoading="isLoading"
-        :conversationTitle="conversationTitle"
+        :curr-messages="visibleMessages"
+        :is-loading="isLoading"
+        :conversation-title="conversationTitle"
+        :branch-info="branchInfo"
         :show-welcome="!currConvo && !isTyping"
         :is-dark="isDark"
         :is-incognito="isIncognito"
         @set-message="text => messageFormRef?.setMessage(text)"
         @scroll="handleChatScroll"
+        @edit-message="editUserMessage"
+        @regenerate-message="regenerateAssistantMessage"
+        @navigate-branch="navigateBranch"
       />
       <MessageForm
         ref="messageFormRef"
@@ -63,6 +67,9 @@ const settingsManager = useSettings();
 // Initialize conversation state and methods
 const {
   messages,
+  visibleMessages,
+  branchPath,
+  branchInfo,
   isLoading,
   controller,
   currConvo,
@@ -71,6 +78,9 @@ const {
   isTyping,
   chatLoading,
   sendMessage: originalSendMessage,
+  editUserMessage,
+  regenerateAssistantMessage,
+  navigateBranch,
   changeConversation,
   deleteConversation,
   newConversation,

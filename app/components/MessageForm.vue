@@ -31,7 +31,7 @@ const emit = defineEmits([
 const keys = useMagicKeys();
 
 // Local state for reasoning effort
-const reasoningEffort = ref("default");
+const reasoningEffort = ref();
 
 // --- Reactive State ---
 const inputMessage = ref("");

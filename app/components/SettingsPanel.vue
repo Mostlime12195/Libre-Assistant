@@ -25,6 +25,10 @@ const userName = ref("");
 const occupation = ref("");
 const customInstructions = ref("");
 
+// API key fields
+const customApiKey = ref("");
+const showApiKey = ref(false);
+
 // --- Constants for Navigation ---
 const navItems = [
   {
@@ -63,6 +67,7 @@ onMounted(async () => {
   customInstructions.value = settingsManager.settings.custom_instructions || "";
   globalMemoryEnabled.value = settingsManager.settings.global_memory_enabled === true;
   gptOssLimitTables.value = settingsManager.settings.gpt_oss_limit_tables === true;
+  customApiKey.value = settingsManager.settings.custom_api_key || "";
 
   // Load memory facts
   await loadMemoryFacts();
@@ -107,13 +112,15 @@ async function saveSettings() {
   settingsManager.setSetting("custom_instructions", customInstructions.value);
   settingsManager.setSetting("global_memory_enabled", globalMemoryEnabled.value);
   settingsManager.setSetting("gpt_oss_limit_tables", gptOssLimitTables.value);
+  settingsManager.setSetting("custom_api_key", customApiKey.value.trim());
 
   console.log("Saving settings:", {
     user_name: userName.value,
     occupation: occupation.value,
     custom_instructions: customInstructions.value,
     global_memory_enabled: globalMemoryEnabled.value,
-    gpt_oss_limit_tables: gptOssLimitTables.value
+    gpt_oss_limit_tables: gptOssLimitTables.value,
+    has_custom_api_key: !!customApiKey.value.trim()
   });
 
   await settingsManager.saveSettings();
@@ -204,6 +211,28 @@ async function handleClearAllMemory() {
                   <SwitchRoot class="switch-root" :modelValue="gptOssLimitTables" @update:modelValue="gptOssLimitTables = $event">
                     <SwitchThumb class="switch-thumb" />
                   </SwitchRoot>
+                </div>
+              </div>
+              <div class="setting-item textarea-item">
+                <div class="setting-info">
+                  <h3>Custom API Key</h3>
+                  <p>Use your own Hack Club API key (bypasses rate limits)</p>
+                </div>
+                <div class="input-container api-key-container">
+                  <input 
+                    v-model="customApiKey" 
+                    :type="showApiKey ? 'text' : 'password'" 
+                    placeholder="Enter your Hack Club API key"
+                    class="custom-input api-key-input" 
+                  />
+                  <button 
+                    type="button" 
+                    class="toggle-visibility-btn" 
+                    @click="showApiKey = !showApiKey"
+                    :aria-label="showApiKey ? 'Hide API key' : 'Show API key'"
+                  >
+                    <Icon :icon="showApiKey ? 'material-symbols:visibility-off' : 'material-symbols:visibility'" width="20" height="20" />
+                  </button>
                 </div>
               </div>
             </div>
@@ -626,6 +655,38 @@ async function handleClearAllMemory() {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 2px var(--primary-a2);
+}
+
+/* API Key Input */
+.api-key-container {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.api-key-input {
+  flex: 1;
+  font-family: monospace;
+}
+
+.toggle-visibility-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.toggle-visibility-btn:hover {
+  background: var(--btn-hover);
+  color: var(--text-primary);
 }
 
 .switch-container {

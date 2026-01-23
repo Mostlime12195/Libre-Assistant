@@ -4,8 +4,13 @@ import OpenAI from 'openai';
 export default defineEventHandler(async (event) => {
   const body = await readBody(event);
 
+  // Extract custom API key from body (if provided)
+  const customApiKey = body.customApiKey;
+  delete body.customApiKey; // Remove from body before passing to OpenAI
+
   const config = useRuntimeConfig(event);
-  const apiKey = config.hackclubApiKey;
+  // Use custom key if provided, otherwise use env key
+  const apiKey = customApiKey || config.hackclubApiKey;
 
   const openai = new OpenAI({
     apiKey: apiKey || '',

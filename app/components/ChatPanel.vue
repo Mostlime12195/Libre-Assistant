@@ -39,10 +39,14 @@ const props = defineProps({
   isIncognito: {
     type: Boolean,
     default: false
+  },
+  branchInfo: {
+    type: Map,
+    default: () => new Map()
   }
 });
 
-const emit = defineEmits(["send-message", "set-message", "scroll"]);
+const emit = defineEmits(["send-message", "set-message", "scroll", "edit-message", "regenerate-message", "navigate-branch"]);
 
 // Helper function to calculate message stats
 function calculateMessageStats(message) {
@@ -452,6 +456,34 @@ function copyMessage(content, event) {
   });
 }
 
+// --- Branching Logic ---
+const editingMessageId = ref(null);
+const editContent = ref("");
+
+function startEditing(message) {
+  editingMessageId.value = message.id;
+  editContent.value = message.content;
+}
+
+function cancelEditing() {
+  editingMessageId.value = null;
+  editContent.value = "";
+}
+
+function submitEdit(messageId) {
+  if (editContent.value.trim() === "") return;
+  emit("edit-message", messageId, editContent.value);
+  editingMessageId.value = null;
+}
+
+function regenerateMessage(messageId) {
+  emit("regenerate-message", messageId);
+}
+
+function navigateBranch(messageId, direction) {
+  emit("navigate-branch", messageId, direction);
+}
+
 // Function to determine CSS classes for parts based on their position and adjacent parts
 function getPartClass(partType, index, parts) {
   // Only apply special styling to reasoning and tool_group parts
@@ -710,7 +742,20 @@ defineExpose({ scrollToEnd, isAtBottom, chatWrapper });
                             </div>
                           </div>
                           <!-- Message text -->
-                          <div v-if="message.content" class="user-text">{{ message.content }}</div>
+                          <div v-if="editingMessageId !== message.id" class="user-text">{{ message.content }}</div>
+                          <div v-else class="edit-area">
+                            <textarea 
+                              v-model="editContent" 
+                              class="edit-textarea" 
+                              ref="editTextarea"
+                              @keydown.enter.exact.prevent="submitEdit(message.id)"
+                              @keydown.esc="cancelEditing"
+                            ></textarea>
+                            <div class="edit-actions">
+                              <button class="edit-cancel" @click="cancelEditing">Cancel</button>
+                              <button class="edit-save" @click="submitEdit(message.id)">Save & Submit</button>
+                            </div>
+                          </div>
                         </div>
                         <div v-else-if="message.complete" class="markdown-content"
                           v-html="renderMessageContent(message.content, message.executed_tools || [])"></div>
@@ -725,10 +770,40 @@ defineExpose({ scrollToEnd, isAtBottom, chatWrapper });
                       </div>
                   </div>
               <div class="message-content-footer" :class="{ 'user-footer': message.role === 'user' }">
-                <button class="copy-button" @click="copyMessage(message.content, $event)" :title="'Copy message'"
-                  aria-label="Copy message">
-                  <Icon icon="material-symbols:content-copy-outline-rounded" width="32px" height="32px" />
-                </button>
+                <div class="footer-left-actions">
+                  <button class="footer-action-btn copy-button" @click="copyMessage(message.content, $event)" :title="'Copy message'"
+                    aria-label="Copy message">
+                    <Icon icon="material-symbols:content-copy-outline-rounded" width="18px" height="18px" />
+                  </button>
+                  
+                  <!-- Edit button for user messages -->
+                  <button v-if="message.role === 'user'" class="footer-action-btn edit-button" 
+                    @click="startEditing(message)" title="Edit message" aria-label="Edit message">
+                    <Icon icon="material-symbols:edit-outline-rounded" width="18px" height="18px" />
+                  </button>
+                  
+                  <!-- Regenerate button for assistant messages -->
+                  <button v-if="message.role === 'assistant' && message.complete" class="footer-action-btn regenerate-button" 
+                    @click="regenerateMessage(message.id)" title="Regenerate response" aria-label="Regenerate response">
+                    <Icon icon="material-symbols:refresh-rounded" width="18px" height="18px" />
+                  </button>
+                </div>
+
+                <!-- Branch Navigation -->
+                <div v-if="branchInfo.has(message.id)" class="branch-navigation">
+                  <button class="nav-prev" @click="navigateBranch(message.id, -1)" 
+                    :disabled="branchInfo.get(message.id).current === 0">
+                    <Icon icon="material-symbols:chevron-left-rounded" width="20px" height="20px" />
+                  </button>
+                  <span class="branch-counter">
+                    {{ branchInfo.get(message.id).current + 1 }} / {{ branchInfo.get(message.id).total }}
+                  </span>
+                  <button class="nav-next" @click="navigateBranch(message.id, 1)" 
+                    :disabled="branchInfo.get(message.id).current === branchInfo.get(message.id).total - 1">
+                    <Icon icon="material-symbols:chevron-right-rounded" width="20px" height="20px" />
+                  </button>
+                </div>
+
                 <div v-if="message.role === 'assistant'" class="message-stats-row">
                   <span v-for="(stat, index) in getMessageStats(message)" :key="index" class="stat-item">
                     <span v-if="stat.value" class="stat-value">{{ stat.value }}</span>
@@ -903,8 +978,8 @@ defineExpose({ scrollToEnd, isAtBottom, chatWrapper });
   background: transparent;
   border: none;
   border-radius: 8px;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   padding: 6px;
   cursor: pointer;
   transition: all 0.2s ease-in-out;
@@ -917,6 +992,138 @@ defineExpose({ scrollToEnd, isAtBottom, chatWrapper });
 .copy-button:hover {
   background: var(--btn-hover);
   color: var(--text-primary);
+}
+
+.footer-left-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.footer-action-btn {
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  padding: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+}
+
+.footer-action-btn:hover {
+  background: var(--btn-hover);
+  color: var(--text-primary);
+}
+
+.branch-navigation {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 8px;
+  background: var(--bg-secondary);
+  border-radius: 14px;
+  padding: 2px 4px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+.message.user .branch-navigation {
+  margin: 0 8px
+}
+
+.branch-counter {
+  min-width: 30px;
+  text-align: center;
+  font-weight: 500;
+  user-select: none;
+}
+
+.branch-navigation button {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.branch-navigation button:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--btn-hover);
+}
+
+.branch-navigation button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* Edit Area Styles */
+.edit-area {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.edit-textarea {
+  width: 100%;
+  min-height: 100px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+}
+
+.edit-textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-20);
+}
+
+.edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.edit-actions button {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.edit-cancel {
+  color: var(--primary-foreground);
+}
+
+.edit-cancel:hover {
+  background: var(--btn-hover);
+}
+
+.edit-save {
+  color: var(--primary-foreground);
+}
+
+.edit-save:hover {
+  background: var(--btn-hover);
 }
 
 .copy-button.copied {

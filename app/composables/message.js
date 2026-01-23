@@ -346,6 +346,8 @@ export async function* handleIncomingMessage(
           top_p: modelParameters.top_p,
           seed: modelParameters.seed,
         }),
+        // Pass custom API key if set
+        ...(settings.custom_api_key && { customApiKey: settings.custom_api_key }),
       };
 
       // Add reasoning parameters only if the model supports reasoning
@@ -354,7 +356,7 @@ export async function* handleIncomingMessage(
         if (typeof selectedModelInfo.reasoning === "string") {
           // Use the reasoning model when reasoning is enabled (effort is not 'none' or not specified)
           if (
-            modelParameters?.reasoning?.effort ||
+            modelParameters?.reasoning?.effort &&
             modelParameters.reasoning.effort !== "none"
           ) {
             requestBody.model = selectedModelInfo.reasoning;
@@ -459,20 +461,6 @@ export async function* handleIncomingMessage(
             if (parsed.choices && parsed.choices[0]) {
               const choice = parsed.choices[0];
 
-              console.log(
-                "Choice structure:",
-                JSON.stringify(parsed.choices[0], null, 2)
-              );
-              console.log(
-                "Has images in delta:",
-                !!parsed.choices[0].delta?.images
-              );
-              console.log(
-                "Has images in message:",
-                !!parsed.choices[0].message?.images
-              );
-              console.log("Has images in parsed:", !!parsed.images);
-
               // 1) Accumulate tool_calls
               if (choice.delta?.tool_calls) {
                 hadToolCalls = true;
@@ -576,7 +564,6 @@ export async function* handleIncomingMessage(
                 choice.delta?.images;
 
               if (images && images.length > 0) {
-                console.log('[message.js] Yielding images:', JSON.stringify(images, null, 2));
                 yield {
                   content:
                     choice.delta?.content !== undefined

@@ -35,6 +35,9 @@ class Settings {
 
       // --- GPT-OSS Specific Settings ---
       gpt_oss_limit_tables: false, // Whether to limit table usage for GPT-OSS models
+
+      // --- API Key Settings ---
+      custom_api_key: '', // User's own Hack Club API key (bypasses rate limits)
     });
 
     // Add type information for better type safety
@@ -49,6 +52,7 @@ class Settings {
       model_settings: {}, // Default value for model settings
       parameter_config: { ...DEFAULT_PARAMETERS },
       gpt_oss_limit_tables: false, // Default value for GPT-OSS table limiting
+      custom_api_key: '', // Default empty API key
     };
 
     // Load settings asynchronously

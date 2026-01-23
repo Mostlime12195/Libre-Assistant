@@ -1,5 +1,6 @@
 import localforage from "localforage";
 import { emitter } from "~/composables/emitter";
+import { migrateMessages } from "./branchManager";
 
 export async function createConversation(plainMessages, lastUpdated) {
   const conversationId = crypto.randomUUID();
@@ -13,6 +14,9 @@ export async function createConversation(plainMessages, lastUpdated) {
     content: msg.content,
     timestamp: msg.timestamp, // Date objects are fine here
     complete: msg.complete,
+    // Branching metadata
+    parentId: msg.parentId ?? null,
+    branchIndex: msg.branchIndex ?? 0,
     // Add attachments for user messages (deep clone to remove reactive proxies)
     ...(msg.role === "user" && msg.attachments && msg.attachments.length > 0 && {
       attachments: JSON.parse(JSON.stringify(msg.attachments)),
@@ -48,6 +52,7 @@ export async function createConversation(plainMessages, lastUpdated) {
       title,
       lastUpdated,
       messages: rawMessages,
+      branchPath: [], // Initialize with empty branch path (follow first branch at each fork)
     });
 
     // Store metadata separately (only ID, title, and timestamp)
@@ -149,6 +154,9 @@ export async function storeMessages(
     content: msg.content,
     timestamp: msg.timestamp, // Date objects are fine here
     complete: msg.complete,
+    // Branching metadata
+    parentId: msg.parentId ?? null,
+    branchIndex: msg.branchIndex ?? 0,
     // Add attachments for user messages (deep clone to remove reactive proxies)
     ...(msg.role === "user" && msg.attachments && msg.attachments.length > 0 && {
       attachments: JSON.parse(JSON.stringify(msg.attachments)),
@@ -169,7 +177,6 @@ export async function storeMessages(
       // Token counting
       tokenCount: msg.tokenCount,
       // Annotations for reuse
-      // Annotations for reuse
       annotations: msg.annotations ? JSON.parse(JSON.stringify(msg.annotations)) : null,
       // Timeline parts for interleaved rendering
       parts: msg.parts ? JSON.parse(JSON.stringify(msg.parts)) : null,
@@ -177,20 +184,15 @@ export async function storeMessages(
     // Add any other properties your message objects might have
   }));
 
-  console.log("Storing messages, checking for tool_calls:");
-  rawMessages.forEach((msg, index) => {
-    if (msg.role === "assistant") {
-      console.log(`Message ${index} tool_calls:`, msg.tool_calls);
-    }
-  });
-
   const title = data.title || "Untitled";
+  const branchPath = data.branchPath ?? []; // Preserve existing branch path
 
   // Store full conversation
   await localforage.setItem(`conversation_${conversationId}`, {
     title,
     lastUpdated,
     messages: rawMessages,
+    branchPath,
   });
 
   // Optionally update metadata. If you want to replace existing metadata,
@@ -217,4 +219,57 @@ export async function deleteConversation(conversationId) {
   emitter.emit("updateConversations");
 
   console.log(`Conversation ${conversationId} deleted successfully!`);
+}
+
+/**
+ * Updates the branch path for a conversation
+ * @param {string} conversationId - The conversation ID
+ * @param {Array<number>} branchPath - The new branch path
+ */
+export async function updateBranchPath(conversationId, branchPath) {
+  const data = await localforage.getItem(`conversation_${conversationId}`);
+  if (!data) {
+    console.warn(`No conversation found for id ${conversationId}.`);
+    return;
+  }
+
+  await localforage.setItem(`conversation_${conversationId}`, {
+    ...data,
+    branchPath,
+    lastUpdated: new Date(),
+  });
+}
+
+/**
+ * Loads a conversation and migrates messages if needed for branching support
+ * @param {string} conversationId - The conversation ID
+ * @returns {Object|null} The conversation data with migrated messages, or null if not found
+ */
+export async function loadConversation(conversationId) {
+  const data = await localforage.getItem(`conversation_${conversationId}`);
+  if (!data) return null;
+
+  // Migrate messages if they don't have branching metadata
+  const needsMigration = data.messages?.length > 0 &&
+    data.messages[0].parentId === undefined;
+
+  if (needsMigration) {
+    const migratedMessages = migrateMessages(data.messages);
+    // Save the migrated data
+    await localforage.setItem(`conversation_${conversationId}`, {
+      ...data,
+      messages: migratedMessages,
+      branchPath: data.branchPath ?? [],
+    });
+    return {
+      ...data,
+      messages: migratedMessages,
+      branchPath: data.branchPath ?? [],
+    };
+  }
+
+  return {
+    ...data,
+    branchPath: data.branchPath ?? [],
+  };
 }

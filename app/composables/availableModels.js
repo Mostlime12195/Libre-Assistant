@@ -65,15 +65,6 @@ export const availableModels = [
     logo: "/ai_logos/gemini.svg",
     models: [
       {
-        id: "google/gemini-3-pro-preview",
-        name: "Gemini 3 Pro Preview",
-        description: "Early access to Google's next-gen, SOTA multimodal model.",
-        reasoning: true,
-        vision: true,
-        extra_functions: [],
-        extra_parameters: {}
-      },
-      {
         id: "google/gemini-3-flash-preview",
         name: "Gemini 3 Flash Preview",
         description: "Preview of frontier-level fast model, distilled from Gemini 3 Pro and optimized for speed.",
@@ -105,16 +96,6 @@ export const availableModels = [
         extra_parameters: {
           reasoning_effort: [["low", "medium", "high"], "medium"],
         }
-      },
-      {
-        id: "google/gemini-3-pro-image-preview",
-        name: "Nano Banana Pro (Image)",
-        description: "Advanced image generation model with reasoning capabilities.",
-        tool_use: false,
-        reasoning: false,
-        vision: true,
-        extra_functions: [],
-        extra_parameters: {}
       },
       {
         id: "google/gemini-2.5-flash-image",
