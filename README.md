@@ -16,6 +16,7 @@ Libre Assistant does **not** sell or store user information, and all chat & user
 - Incognito mode to prevent chat history from being saved.
 - Global memory to remember user details/preferences/opinions across chats.
 - Parameter configuration panel with temperature, top_p, seed options, and a web search toggle.
+- Conversation branching with message editing/regenerating
 
 ## Todo
 
