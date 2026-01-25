@@ -65,6 +65,17 @@ export const availableModels = [
     logo: "/ai_logos/gemini.svg",
     models: [
       {
+        id: "google/gemini-3-pro-preview",
+        name: "Gemini 3 Pro Preview",
+        description: "Preview of frontier-level fast model, distilled from Gemini 3 Pro and optimized for speed.",
+        reasoning: true,
+        vision: true,
+        extra_functions: [],
+        extra_parameters: {
+          reasoning_effort: [["low", "high"], "high"],
+        }
+      },
+      {
         id: "google/gemini-3-flash-preview",
         name: "Gemini 3 Flash Preview",
         description: "Preview of frontier-level fast model, distilled from Gemini 3 Pro and optimized for speed.",
@@ -116,8 +127,22 @@ export const availableModels = [
       {
         id: "moonshotai/kimi-k2-0905",
         name: "Kimi K2",
-        description: "SOTA open-weights model with exceptional EQ and coding abilities.",
+        description: "Frontier open-weights model with exceptional EQ and coding abilities.",
         reasoning: "moonshotai/kimi-k2-thinking",
+        extra_functions: [],
+        extra_parameters: {}
+      }
+    ],
+  },
+  {
+    category: "MiniMax",
+    logo: "/ai_logos/minimax.svg",
+    models: [
+      {
+        id: "minimax/minimax-m2.1",
+        name: "MiniMax M2.1",
+        description: "Frontier open-weights coding model",
+        reasoning: false,
         extra_functions: [],
         extra_parameters: {}
       }
@@ -128,9 +153,20 @@ export const availableModels = [
     logo: "/ai_logos/openai.svg",
     models: [
       {
+        id: "openai/gpt-5.2",
+        name: "GPT-5.2",
+        description: "The frontier flagship model delivering frontier general and STEM knowledge.",
+        reasoning: true,
+        vision: true,
+        extra_functions: [],
+        extra_parameters: {
+          reasoning_effort: [["low", "medium", "high", "xhigh"], "medium"],
+        }
+      },
+      {
         id: "openai/gpt-5.1",
         name: "GPT-5.1",
-        description: "The frontier flagship model delivering frontier general intelligence.",
+        description: "The flagship model delivering strong general and emotional intelligence.",
         reasoning: true,
         vision: true,
         extra_functions: [],
@@ -181,6 +217,20 @@ export const availableModels = [
         extra_functions: [],
         extra_parameters: {}
       },
+    ],
+  },
+  {
+    category: "XAI",
+    logo: "/ai_logos/xai.svg",
+    models: [
+      {
+        id: "x-ai/grok-4.1-fast",
+        name: "Grok 4.1 Fast",
+        description: "Fast model with great agentic capabilities and limited censorship.",
+        reasoning: [true, false],
+        extra_functions: [],
+        extra_parameters: {}
+      }
     ],
   },
   {
