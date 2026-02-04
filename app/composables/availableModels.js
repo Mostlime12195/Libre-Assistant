@@ -128,6 +128,7 @@ export const availableModels = [
         id: "moonshotai/kimi-k2.5",
         name: "Kimi K2.5",
         description: "SOTA open-weights model with exceptional EQ, coding, and agentic abilities.",
+        vision: true,
         reasoning: [true, false],
         extra_functions: [],
         extra_parameters: {}
