@@ -118,6 +118,82 @@ function renderBlockHtml(mdText) {
   return md.render(mdText);
 }
 
+// --- Caret Management ---
+
+/**
+ * Find the deepest last element suitable for inline caret insertion.
+ * Walks the DOM to find the actual text-containing element
+ * (e.g., <p>, <li>, <code>, <h1>-<h6>, <td>, <span>) so the
+ * caret appears inline with the text instead of on a new line.
+ */
+function findCaretInsertionPoint(container) {
+  if (!container) return null;
+  const children = container.children;
+  if (children.length === 0) return container;
+
+  const lastChild = children[children.length - 1];
+
+  // Code blocks: insert inside the <code> element
+  if (lastChild.classList?.contains('code-block-wrapper')) {
+    const code = lastChild.querySelector('pre code');
+    return code || lastChild;
+  }
+
+  // Lists: find the deepest content in the last <li>
+  if (lastChild.tagName === 'UL' || lastChild.tagName === 'OL') {
+    const lastLi = lastChild.querySelector('li:last-child');
+    if (lastLi) {
+      // If the li contains paragraphs, go into the last one
+      const lastP = lastLi.querySelector('p:last-of-type');
+      return lastP || lastLi;
+    }
+    return lastChild;
+  }
+
+  // Blockquotes: find the last paragraph inside
+  if (lastChild.tagName === 'BLOCKQUOTE') {
+    const lastP = lastChild.querySelector('p:last-of-type');
+    return lastP || lastChild;
+  }
+
+  // Tables: find the last cell
+  if (lastChild.tagName === 'TABLE') {
+    const lastTd = lastChild.querySelector('tr:last-child td:last-child');
+    return lastTd || lastChild;
+  }
+
+  // Paragraphs, headers, and other inline containers — return directly
+  return lastChild;
+}
+
+/**
+ * Add streaming caret inside the last content element of the streaming container.
+ */
+function addCaretToStreamingContainer() {
+  if (!streamingContainer.value) return;
+
+  // Remove any existing caret first
+  removeCaretFromStreamingContainer();
+
+  const insertionPoint = findCaretInsertionPoint(streamingContainer.value);
+  if (!insertionPoint) return;
+
+  const caret = document.createElement('span');
+  caret.className = 'streaming-caret';
+  insertionPoint.appendChild(caret);
+}
+
+/**
+ * Remove streaming caret from the streaming container.
+ */
+function removeCaretFromStreamingContainer() {
+  if (!streamingContainer.value) return;
+  const existingCaret = streamingContainer.value.querySelector('.streaming-caret');
+  if (existingCaret) {
+    existingCaret.remove();
+  }
+}
+
 // --- Spacing Stability ---
 
 /**
@@ -140,6 +216,9 @@ function applyMarginClasses(container) {
 function flushToStatic() {
   if (!staticContainer.value || !streamingContainer.value) return;
 
+  // Remove caret before flushing
+  removeCaretFromStreamingContainer();
+
   while (streamingContainer.value.firstChild) {
     staticContainer.value.appendChild(streamingContainer.value.firstChild);
     staticBlockCount++;
@@ -149,17 +228,29 @@ function flushToStatic() {
 }
 
 // Update the streaming reactive HTML (avoids redundant writes)
-function setStreamingHtml(html) {
-  if (lastRenderKey === html) return;
+function setStreamingHtml(html, addCaret = false) {
+  // If html hasn't changed and we're not adding/removing caret, skip
+  if (lastRenderKey === html && !addCaret) return;
+  
   lastRenderKey = html;
   streamingHtml.value = html || '';
 
-  nextTick(() => applyMarginClasses(streamingContainer.value));
+  nextTick(() => {
+    applyMarginClasses(streamingContainer.value);
+    if (addCaret) {
+      addCaretToStreamingContainer();
+    } else {
+      removeCaretFromStreamingContainer();
+    }
+  });
 }
 
 // Finalize: render full content into static container
 function finalizeAll(fullText) {
   if (!staticContainer.value) return;
+
+  // Remove caret since we're finalizing
+  removeCaretFromStreamingContainer();
 
   // Clear everything
   staticContainer.value.innerHTML = '';
@@ -167,7 +258,7 @@ function finalizeAll(fullText) {
 
   // Render full content via reactive binding, then flush to static
   const fullHtml = md.render(fullText || '');
-  setStreamingHtml(fullHtml);
+  setStreamingHtml(fullHtml, false); // Don't add caret when finalizing
 
   // After Vue renders the streaming container, move nodes to static
   nextTick(() => {
@@ -221,16 +312,22 @@ function processAppendedSuffix(suffix) {
     }
 
     if (accumulatedHtml) {
-      setStreamingHtml(accumulatedHtml);
-      // Wait for Vue to render, then flush to static
-      nextTick(() => flushToStatic());
+      // Step 1: Set complete blocks and wait for flush
+      setStreamingHtml(accumulatedHtml, false);
+      nextTick(() => {
+        flushToStatic();
+        // Step 2: Set current streaming block after flush
+        setStreamingHtml(renderBlockHtml(streamingBlock), true);
+      });
+    } else {
+      setStreamingHtml(renderBlockHtml(streamingBlock), true);
     }
 
     lastCompleteBlockCount = completeBlocks.length;
+  } else {
+    // Regular update: just update the streaming block
+    setStreamingHtml(renderBlockHtml(streamingBlock), true);
   }
-
-  // Always update the streaming block
-  setStreamingHtml(renderBlockHtml(streamingBlock));
 }
 
 // Handle non-prefix (rewind/replace) content changes
@@ -264,7 +361,7 @@ function handleNonPrefixReplace(newContent, isComplete) {
 
   lastCompleteBlockCount = completeBlocks.length;
   tailMarkdown = blocks.length ? blocks[blocks.length - 1] : '';
-  setStreamingHtml(renderBlockHtml(tailMarkdown));
+  setStreamingHtml(renderBlockHtml(tailMarkdown), true);
 
   prevContent = newContent || '';
 }

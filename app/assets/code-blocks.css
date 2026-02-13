@@ -1,38 +1,62 @@
 /* Code block and inline code styles */
 :root {
   /* Default code block colors (light mode) */
-  --code-bg: #fefbec; /* Using Atelier Dune light background */
-  --code-text: #6e6b5e; /* Using Atelier Dune light text color */
-  --code-action-text: #7d7a68; /* Atelier Dune tag color */
-  --code-action-hover-bg: rgba(166, 162, 140, 0.1); /* Atelier Dune selection color */
+  --code-bg: #fefbec;
+  /* Using Atelier Dune light background */
+  --code-text: #6e6b5e;
+  /* Using Atelier Dune light text color */
+  --code-action-text: #7d7a68;
+  /* Atelier Dune tag color */
+  --code-action-hover-bg: rgba(166, 162, 140, 0.1);
+  /* Atelier Dune selection color */
   --code-action-hover-text: #6e6b5e;
-  --code-comment: #999580; /* Atelier Dune comment color */
-  --code-keyword: #b854d4; /* Atelier Dune keyword color */
-  --code-function: #6684e1; /* Atelier Dune function color */
-  --code-string: #60ac39; /* Atelier Dune string color */
-  --code-number: #b65611; /* Atelier Dune number color */
-  --code-variable: #d73737; /* Atelier Dune variable color */
-  --code-property: #6684e1; /* Atelier Dune property color */
+  --code-comment: #999580;
+  /* Atelier Dune comment color */
+  --code-keyword: #b854d4;
+  /* Atelier Dune keyword color */
+  --code-function: #6684e1;
+  /* Atelier Dune function color */
+  --code-string: #60ac39;
+  /* Atelier Dune string color */
+  --code-number: #b65611;
+  /* Atelier Dune number color */
+  --code-variable: #d73737;
+  /* Atelier Dune variable color */
+  --code-property: #6684e1;
+  /* Atelier Dune property color */
 
-  --code-inline-bg: #e8e4cf; /* Lighter version of background */
+  --code-inline-bg: #e8e4cf;
+  /* Lighter version of background */
 }
 
 .dark {
   /* Code block adjustments for dark mode */
-  --code-bg: #201f1d; /* Atelier Dune dark background */
-  --code-text: #a6a28c; /* Atelier Dune dark text color */
-  --code-action-text: #999580; /* Atelier Dune tag color */
-  --code-action-hover-bg: rgba(110, 107, 94, 0.03); /* Atelier Dune selection color */
+  --code-bg: #201f1d;
+  /* Atelier Dune dark background */
+  --code-text: #a6a28c;
+  /* Atelier Dune dark text color */
+  --code-action-text: #999580;
+  /* Atelier Dune tag color */
+  --code-action-hover-bg: rgba(110, 107, 94, 0.03);
+  /* Atelier Dune selection color */
   --code-action-hover-text: #a6a28c;
-  --code-comment: #7d7a68; /* Atelier Dune comment color */
-  --code-keyword: #b854d4; /* Atelier Dune keyword color */
-  --code-function: #6684e1; /* Atelier Dune function color */
-  --code-string: #60ac39; /* Atelier Dune string color */
-  --code-number: #b65611; /* Atelier Dune number color */
-  --code-variable: #d73737; /* Atelier Dune variable color */
-  --code-property: #6684e1; /* Atelier Dune property color */
+  --code-comment: #7d7a68;
+  /* Atelier Dune comment color */
+  --code-keyword: #b854d4;
+  /* Atelier Dune keyword color */
+  --code-function: #6684e1;
+  /* Atelier Dune function color */
+  --code-string: #60ac39;
+  /* Atelier Dune string color */
+  --code-number: #b65611;
+  /* Atelier Dune number color */
+  --code-variable: #d73737;
+  /* Atelier Dune variable color */
+  --code-property: #6684e1;
+  /* Atelier Dune property color */
 
-  --code-inline-bg: #2d2d29; /* Darker version of background */
+  --code-inline-bg: #2d2d29;
+  /* Darker version of background */
 }
 
 /* Code block wrapper */
@@ -159,7 +183,8 @@
 .markdown-content pre code.hljs .hljs-meta,
 .markdown-content pre code.hljs .hljs-meta .hljs-keyword,
 .markdown-content pre code.hljs .hljs-meta .hljs-string {
-  color: #d43552; /* Atelier Dune meta color */
+  color: #d43552;
+  /* Atelier Dune meta color */
 }
 
 .markdown-content pre code.hljs .hljs-keyword,
@@ -201,7 +226,8 @@
 .markdown-content pre code.hljs .hljs-selector-class,
 .markdown-content pre code.hljs .hljs-selector-attr,
 .markdown-content pre code.hljs .hljs-selector-pseudo {
-  color: #1fad83; /* Atelier Dune built-in color */
+  color: #1fad83;
+  /* Atelier Dune built-in color */
 }
 
 /* ==========================================
@@ -392,3 +418,38 @@
   margin: 1em 0;
 }
 
+/* ==========================================
+   Streaming Caret Indicator
+   ========================================== */
+
+.streaming-caret {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--primary);
+  margin-left: 4px;
+  vertical-align: middle;
+  animation: streaming-caret-pulse 1.2s ease-in-out infinite;
+}
+
+/* Inside code blocks, use the code text color for harmony */
+.code-block-wrapper .streaming-caret {
+  background-color: var(--code-text);
+  width: 8px;
+  height: 8px;
+}
+
+@keyframes streaming-caret-pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+}

@@ -5,7 +5,6 @@ import { md } from '../utils/markdown';
 import { copyCode, downloadCode } from '../utils/codeBlockUtils';
 import StreamingMessage from './StreamingMessage.vue';
 import ChatWidget from './ChatWidget.vue';
-import LoadingSpinner from './LoadingSpinner.vue';
 import { getFormattedStatsFromExecutedTools } from '../composables/searchViewStats';
 import { highlightAllBlocks } from '../utils/lazyHighlight';
 

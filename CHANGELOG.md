@@ -13,6 +13,15 @@ All notable changes to Libre Assistant are documented here.
 
 ---
 
+## [0.8.1] - 2026-02-13
+
+### Added
+- Readded caret that was removed in v0.8.0
+
+### Changed
+- Caret now appears inline as the message is streaming, as opposed to only until the first token is generated
+- Caret is now stylized when within code blocks
+
 ## [0.8.0] - 2026-02-13
 
 ### Added
@@ -38,6 +47,9 @@ All notable changes to Libre Assistant are documented here.
 - **Unlimited tool iterations** — The assistant can now use tools as many times as needed without artificial limits (previously capped at 4)
 - **Smoother streaming** — Completely rewrote how messages stream to your screen for buttery-smooth 60fps rendering with less delay
 - **Better error messages** — When API quota is exhausted, you'll now see clear details about your remaining balance
+
+### Removed
+- Removed caret (temporarily)
 
 ### Fixed
 - Fixed crashes when attaching PDF files
