@@ -173,6 +173,9 @@ export async function deleteConversation(conversationId) {
   // Emit an event so that the sidebar updates its list.
   emitter.emit("updateConversations");
 
+  // Emit an event with the deleted conversation ID so pages can react
+  emitter.emit("conversationDeleted", { conversationId });
+
   console.log(`Conversation ${conversationId} deleted successfully!`);
 }
 

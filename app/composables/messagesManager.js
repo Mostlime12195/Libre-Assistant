@@ -1,4 +1,5 @@
 import { ref, computed, nextTick, onMounted, onUnmounted, toRaw } from 'vue';
+import { useRouter } from 'vue-router';
 import localforage from 'localforage';
 import { createConversation as createNewConversation, storeMessages, deleteConversation as deleteConv, updateBranchPath, loadConversation } from './storeConversations';
 import { handleIncomingMessage } from './message';
@@ -31,6 +32,9 @@ export function useMessagesManager(chatPanel) {
   // Use global incognito state
   const { isIncognito, toggleIncognito: globalToggleIncognito } = useGlobalIncognito();
 
+  // Initialize router for navigation
+  const router = useRouter();
+
   // Reactive state for messages
   const messages = ref([]);
   const branchPath = ref([]);
@@ -62,12 +66,27 @@ export function useMessagesManager(chatPanel) {
     }
   };
 
+  // Handle conversation deletion - navigate to new conversation when current one is deleted
+  const handleConversationDeleted = ({ conversationId }) => {
+    if (currConvo.value === conversationId && !isIncognito.value) {
+      // Clear current conversation state (if not already cleared by deleteConversation)
+      currConvo.value = '';
+      messages.value = [];
+      conversationTitle.value = '';
+      branchPath.value = [];
+      // Navigate to new conversation
+      router.push('/');
+    }
+  };
+
   onMounted(() => {
     emitter.on('conversationTitleUpdated', handleTitleUpdate);
+    emitter.on('conversationDeleted', handleConversationDeleted);
   });
 
   onUnmounted(() => {
     emitter.off('conversationTitleUpdated', handleTitleUpdate);
+    emitter.off('conversationDeleted', handleConversationDeleted);
   });
 
   // Method to update chat panel reference (for dynamic pages)

@@ -230,20 +230,6 @@ export const availableModels = [
     logo: "/ai_logos/gemini.svg",
     models: [
       {
-        id: "google/gemini-3-pro-preview",
-        name: "Gemini 3 Pro Preview",
-        description: "Preview of frontier-level fast model, distilled from Gemini 3 Pro and optimized for speed.",
-        reasoning: {
-          supported: true,
-          toggleable: false,
-          effort: {
-            levels: ['low', 'high'],
-            default: 'high'
-          }
-        },
-        vision: true,
-      },
-      {
         id: "google/gemini-3-flash-preview",
         name: "Gemini 3 Flash Preview",
         description: "Preview of frontier-level fast model, distilled from Gemini 3 Pro and optimized for speed.",
@@ -354,34 +340,6 @@ export const availableModels = [
     logo: "/ai_logos/openai.svg",
     models: [
       {
-        id: "openai/gpt-5.2",
-        name: "GPT-5.2",
-        description: "The frontier flagship model delivering frontier general and STEM knowledge.",
-        reasoning: {
-          supported: true,
-          toggleable: false,
-          effort: {
-            levels: ['low', 'medium', 'high', 'xhigh'],
-            default: 'medium'
-          }
-        },
-        vision: true,
-      },
-      {
-        id: "openai/gpt-5.1",
-        name: "GPT-5.1",
-        description: "The flagship model delivering strong general and emotional intelligence.",
-        reasoning: {
-          supported: true,
-          toggleable: false,
-          effort: {
-            levels: ['low', 'medium', 'high'],
-            default: 'medium'
-          }
-        },
-        vision: true,
-      },
-      {
         id: "openai/gpt-oss-120b",
         name: "GPT OSS 120B",
         description: "High-performance open-weights model with exceptional STEM capabilities.",
@@ -430,6 +388,16 @@ export const availableModels = [
     category: "Qwen",
     logo: "/ai_logos/qwen.svg",
     models: [
+      {
+        id: "qwen/qwen3.5-397b-a17b",
+        name: "Qwen3.5 397B A17B",
+        description: "Cutting-edge open-weight model with multimodality.",
+        vision: true,
+        reasoning: {
+          supported: true,
+          toggleable: true,
+        },
+      },
       {
         id: "qwen/qwen3-vl-235b-a22b-instruct",
         name: "Qwen 3 VL 235B A22B Instruct",

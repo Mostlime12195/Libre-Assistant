@@ -1,15 +1,15 @@
 /**
  * @file rateLimiter.js
  * @description Client-side daily rate limiter using localStorage for persistence.
- * Limits: 48 general requests/day, 8 image generation requests/day.
+ * Limits: 96 general requests/day, 12 image generation requests/day.
  * Resets at midnight local time.
  */
 
 import { ref, computed } from 'vue';
 
 // Rate limit configuration
-const GENERAL_LIMIT = 48;
-const IMAGE_LIMIT = 8;
+const GENERAL_LIMIT = 96;
+const IMAGE_LIMIT = 12;
 const STORAGE_KEY = 'libre_rate_limits';
 
 // Image generation model IDs

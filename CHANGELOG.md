@@ -13,6 +13,24 @@ All notable changes to Libre Assistant are documented here.
 
 ---
 
+## [0.9.1] - 2026-02-19
+
+### Added
+- Qwen3.5 397B A17B model
+
+### Changed
+- Polished sidebar UI spacing
+
+### Removed
+- Gemini 3 Pro (previously deprecated model)
+- GPT-5.2 (previously deprecated model)
+- GPT-5.1 (previously deprecated model)
+
+### Fixed
+- When deleting a conversation you are in, it creates a new conversation (as opposed to staying in the same conversation)
+
+---
+
 ## [0.9.0] - 2026-02-19
 
 ### Added
@@ -28,6 +46,7 @@ All notable changes to Libre Assistant are documented here.
 ### Fixed
 - Streaming content now has fewer repeating/missing text blocks
 
+---
 
 ## [0.8.1] - 2026-02-13
 
@@ -37,6 +56,8 @@ All notable changes to Libre Assistant are documented here.
 ### Changed
 - Caret now appears inline as the message is streaming, as opposed to only until the first token is generated
 - Caret is now stylized when within code blocks
+
+---
 
 ## [0.8.0] - 2026-02-13
 
