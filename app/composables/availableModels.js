@@ -43,8 +43,8 @@ export const availableModels = [
       {
         id: "perplexity/sonar-deep-research",
         name: "Perplexity: Sonar Deep Research",
-        description: "A research model that autonomously runs multiple searches and reasoning over gathered sources to generate comprehensive reports",
-        tool_use: false,
+        description: "Searches and reasons across sources to generate comprehensive reports.",
+        tool_use: true,
         reasoning: true,
         extra_functions: [],
         extra_parameters: {},
