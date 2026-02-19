@@ -372,7 +372,7 @@ function handleNewConversation() {
 .conversation-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 /* Group Header */
@@ -380,8 +380,8 @@ function handleNewConversation() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 8px 2px 8px;
-  margin-top: 2px;
+  padding: 4px 8px 2px 8px;
+  margin-top: 8px;
 }
 
 .group-header:first-child {
@@ -441,7 +441,7 @@ function handleNewConversation() {
   color: var(--text-primary);
   border: none;
   border-radius: 6px;
-  padding: 6px 8px;
+  padding: 4px 8px;
   padding-right: 40px;
   font-size: 0.95em;
   font-family: inherit;
