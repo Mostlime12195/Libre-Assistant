@@ -37,6 +37,45 @@ let lastRenderKey = '';
 let hasEmittedStart = false;
 let lastCompleteBlockCount = 0;
 
+// Processing coordination flags
+let isFlushing = false;
+let pendingUpdate = false;
+let rafId = null;
+let pendingContent = null;
+let pendingIsComplete = false;
+
+/**
+ * Schedule a frame update using requestAnimationFrame for consistent tick processing.
+ * This ensures only ONE processing cycle per animation frame.
+ */
+function scheduleFrameUpdate() {
+  if (rafId) return; // Already scheduled
+  
+  rafId = requestAnimationFrame(() => {
+    rafId = null;
+    if (pendingContent !== null) {
+      const content = pendingContent;
+      const isComplete = pendingIsComplete;
+      pendingContent = null;
+      pendingIsComplete = false;
+      processContentNow(content, isComplete);
+    }
+  });
+}
+
+// Queue content for frame-based processing
+function queueContentUpdate(content, isComplete) {
+  // Cancel any pending RAF to prevent stale updates from firing
+  if (rafId) {
+    cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+  // Always update to latest content
+  pendingContent = content;
+  pendingIsComplete = isComplete;
+  scheduleFrameUpdate();
+}
+
 // Make sure global functions are available
 if (typeof window !== 'undefined') {
   window.copyCode = copyCode;
@@ -214,7 +253,10 @@ function applyMarginClasses(container) {
 
 // Move all DOM children from streaming to static container (append-only)
 function flushToStatic() {
-  if (!staticContainer.value || !streamingContainer.value) return;
+  if (isFlushing || !staticContainer.value || !streamingContainer.value) return;
+  
+  // Set flushing flag immediately to prevent concurrent flushes
+  isFlushing = true;
 
   // Remove caret before flushing
   removeCaretFromStreamingContainer();
@@ -224,11 +266,26 @@ function flushToStatic() {
     staticBlockCount++;
   }
 
-  nextTick(() => applyMarginClasses(staticContainer.value));
+  nextTick(() => {
+    applyMarginClasses(staticContainer.value);
+    isFlushing = false;
+    
+    // If there's pending content update, process it now
+    if (pendingUpdate) {
+      pendingUpdate = false;
+      scheduleFrameUpdate();
+    }
+  });
 }
 
 // Update the streaming reactive HTML (avoids redundant writes)
 function setStreamingHtml(html, addCaret = false) {
+  // Skip if currently flushing and this isn't a caret-only change
+  if (isFlushing && !addCaret) {
+    pendingUpdate = true;
+    return;
+  }
+  
   // If html hasn't changed and we're not adding/removing caret, skip
   if (lastRenderKey === html && !addCaret) return;
   
@@ -312,12 +369,30 @@ function processAppendedSuffix(suffix) {
     }
 
     if (accumulatedHtml) {
-      // Step 1: Set complete blocks and wait for flush
+      // Directly manipulate DOM: move streaming content to static, then update streaming
+      // This avoids nested nextTick issues
+      const newStreamingBlockHtml = renderBlockHtml(streamingBlock);
+      
+      // Set complete blocks to streaming container
+      lastRenderKey = ''; // Force update
       setStreamingHtml(accumulatedHtml, false);
+      
+      // Synchronously flush to static
+      if (staticContainer.value && streamingContainer.value) {
+        removeCaretFromStreamingContainer();
+        while (streamingContainer.value.firstChild) {
+          staticContainer.value.appendChild(streamingContainer.value.firstChild);
+          staticBlockCount++;
+        }
+      }
+      
+      // Now set the streaming block (with caret)
+      setStreamingHtml(newStreamingBlockHtml, true);
+      
+      // Apply margin classes after DOM changes
       nextTick(() => {
-        flushToStatic();
-        // Step 2: Set current streaming block after flush
-        setStreamingHtml(renderBlockHtml(streamingBlock), true);
+        applyMarginClasses(staticContainer.value);
+        applyMarginClasses(streamingContainer.value);
       });
     } else {
       setStreamingHtml(renderBlockHtml(streamingBlock), true);
@@ -407,14 +482,15 @@ function processContentNow(newContent, isComplete) {
   prevContent = newContent;
 }
 
-// Watch props and process immediately
+// Watch props and process immediately - use queue for frame-based batching
 watch(
   () => [props.content, props.isComplete],
   ([newContent, isComplete]) => {
     if (!newContent || newContent.length < prevContent.length) {
       hasEmittedStart = false;
     }
-    processContentNow(newContent || '', isComplete);
+    // Queue the content for frame-based processing
+    queueContentUpdate(newContent || '', isComplete);
   },
   { immediate: true }
 );

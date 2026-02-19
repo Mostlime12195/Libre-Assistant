@@ -13,6 +13,22 @@ All notable changes to Libre Assistant are documented here.
 
 ---
 
+## [0.9.0] - 2026-02-19
+
+### Added
+- Perplexity's Sonar Deep Research model
+- Ability to search for chats
+- Ability to pin chats to the top of the search bar
+- Ability to rename chats
+
+### Changed
+- **Redesigned Sidebar** — Redesigned sidebar UI for sleeker, simpler design with markers denoting when chats were made (today, this week, this month, etc.) and combined chat action buttons into one options popover.
+- Redesigned how model information is stored internally
+
+### Fixed
+- Streaming content now has fewer repeating/missing text blocks
+
+
 ## [0.8.1] - 2026-02-13
 
 ### Added

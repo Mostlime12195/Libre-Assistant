@@ -2,7 +2,7 @@ import { ref, computed, nextTick, onMounted, onUnmounted, toRaw } from 'vue';
 import localforage from 'localforage';
 import { createConversation as createNewConversation, storeMessages, deleteConversation as deleteConv, updateBranchPath, loadConversation } from './storeConversations';
 import { handleIncomingMessage } from './message';
-import { availableModels, findModelById } from './availableModels';
+import { availableModels, findModelById, normalizeReasoningConfig, getDefaultReasoningEffort } from './availableModels';
 import { addMemory, modifyMemory, deleteMemory } from './memory';
 import DEFAULT_PARAMETERS from './defaultParameters';
 import { useSettings } from './useSettings';
@@ -260,26 +260,19 @@ export function useMessagesManager(chatPanel) {
     }
 
     // Construct model parameters
+    const reasoningConfig = normalizeReasoningConfig(selectedModelDetails);
     const savedReasoningEffort = settingsManager.getModelSetting(selectedModelDetails.id, "reasoning_effort") ||
-      (selectedModelDetails.extra_parameters?.reasoning_effort?.[1] || "default");
+      getDefaultReasoningEffort(selectedModelDetails);
 
     const parameterConfig = settingsManager.settings.parameter_config || { ...DEFAULT_PARAMETERS };
-
-    // Check if this model has toggleable reasoning [true, false]
-    const hasToggleableReasoning = Array.isArray(selectedModelDetails.reasoning) &&
-      selectedModelDetails.reasoning.length === 2 &&
-      selectedModelDetails.reasoning[0] === true &&
-      selectedModelDetails.reasoning[1] === false;
 
     const model_parameters = {
       ...parameterConfig,
       ...selectedModelDetails.extra_parameters,
-      reasoning: hasToggleableReasoning
-        ? {
-          effort: savedReasoningEffort,
-          enabled: savedReasoningEffort !== 'none'
-        }
-        : { effort: savedReasoningEffort }
+      reasoning: {
+        effort: savedReasoningEffort,
+        enabled: reasoningConfig.toggleable ? savedReasoningEffort !== 'none' : true
+      }
     };
 
     // Initialize parts builder and timing tracker (outside try so they're accessible in finally)
@@ -287,23 +280,37 @@ export function useMessagesManager(chatPanel) {
     const timing = new TimingTracker(assistantMsg);
 
     try {
-      // Pass only the conversation history BEFORE the current assistant message
-      // We use visibleMessages to ensure context consists only of current branch
-      const historyForAPI = visibleMessages.value.filter(msg =>
-        msg.complete && msg.id !== assistantMsg.id
-      );
+      // Build conversation history for the API.
+      // CRITICAL: History must NOT include the current user message - handleIncomingMessage adds it.
+      // 
+      // For normal messages: visibleMessages = [...history, userMsg we just added, assistantMsg]
+      // For edits/regenerates: visibleMessages = [...history, existing userMsg, assistantMsg]
+      //
+      // In both cases, we need history WITHOUT the user message for this turn
+      // because handleIncomingMessage will add the user message from the `message` param.
+      
+      const historyForAPI = visibleMessages.value.filter(msg => {
+        // Exclude incomplete messages (the assistant placeholder we just created)
+        if (!msg.complete) return false;
+        // Exclude the current user message - it's always the last user message in visibleMessages
+        if (msg.role === 'user') {
+          const lastUserMsg = [...visibleMessages.value].reverse().find(m => m.role === 'user');
+          if (lastUserMsg && msg.id === lastUserMsg.id) return false;
+        }
+        return true;
+      });
 
       const streamGenerator = handleIncomingMessage(
         message,
-        historyForAPI.filter(msg => msg.id !== (skipUserMessage ? null : messages.value[messages.value.length - 2]?.id)),
-        controller.value, // Changed back to .value to match original logic
+        historyForAPI,
+        controller.value,
         settingsManager.settings.selected_model_id,
         model_parameters,
         settingsManager.settings,
         selectedModelDetails.extra_functions || [],
         settingsManager.settings.parameter_config?.grounding ?? DEFAULT_PARAMETERS.grounding,
         isIncognito.value,
-        attachments  // Pass attachments to API
+        attachments
       );
 
       // Helper to update message with Vue reactivity

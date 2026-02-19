@@ -311,6 +311,47 @@ body {
   z-index: 1001;
 }
 
+/* Conversation menu dropdown (sidebar) */
+.conversation-menu-dropdown {
+  animation: popIn 0.2s ease-out forwards;
+  min-width: auto;
+  background: var(--popover-bg);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+  box-shadow: var(--popover-shadow);
+  border: 1px solid var(--popover-border);
+  z-index: 1100;
+}
+
+.conversation-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  transition: background 0.15s;
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+}
+
+.conversation-menu-item:hover {
+  background: var(--btn-hover);
+}
+
+.conversation-menu-item:focus {
+  outline: none;
+  background: var(--btn-hover);
+}
+
+.conversation-menu-item.delete-item {
+  color: var(--danger);
+}
+
 .dropdown-scroll-container {
   max-height: 300px;
   overflow-y: auto;

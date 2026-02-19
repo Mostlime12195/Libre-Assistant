@@ -8,6 +8,7 @@ import {
   availableModels,
   findModelById,
   DEFAULT_MODEL_ID,
+  buildReasoningParams,
 } from "~/composables/availableModels";
 import { generateSystemPrompt } from "~/composables/systemPrompt";
 import { findRelevantMemories } from "~/composables/memory";
@@ -158,8 +159,16 @@ function formatMessageForAPI(msg) {
  * Main entry point for processing all incoming user messages for the API interface.
  * It determines the correct API configuration and streams the LLM response.
  *
- * @param {string} query - The user's message
- * @param {Array} plainMessages - Conversation history (e.g., [{ role: "user", content: "..."}, { role: "assistant", content: "..."}])
+ * MESSAGE ASSEMBLY CONTRACT:
+ * - `plainMessages` should contain conversation history WITHOUT the current user message
+ * - This function ADDS the current user message to the API request
+ * - This ensures no duplication between history and the current turn
+ *
+ * The final messages array sent to the API is:
+ *   [systemPrompt, ...plainMessages (history), { role: "user", content: query }]
+ *
+ * @param {string} query - The user's message (current turn)
+ * @param {Array} plainMessages - Conversation history WITHOUT the current user message
  * @param {AbortController} controller - AbortController instance for cancelling API requests
  * @param {string} selectedModel - The model chosen by the user
  * @param {object} modelParameters - Object containing all configurable model parameters (temperature, top_p, seed, reasoning)
@@ -343,45 +352,23 @@ export async function* handleIncomingMessage(
         ...(settings.custom_api_key && { customApiKey: settings.custom_api_key }),
       };
 
-      // Add reasoning parameters only if the model supports reasoning
+      // Add reasoning parameters using the new buildReasoningParams helper
       if (selectedModelInfo) {
-        // Handle models with reasoning: string (route requests to another model when reasoning is enabled)
-        if (typeof selectedModelInfo.reasoning === "string") {
-          // Use the reasoning model when reasoning is enabled (effort is not 'none' or not specified)
-          if (
-            modelParameters?.reasoning?.effort &&
-            modelParameters.reasoning.effort !== "none"
-          ) {
-            requestBody.model = selectedModelInfo.reasoning;
-          }
-          // Otherwise, use the original selected model
+        const userSettings = {
+          reasoning_effort: modelParameters?.reasoning?.effort
+        };
+        
+        const { reasoningParams, alternateModel } = buildReasoningParams(selectedModelInfo, userSettings);
+        
+        // If there's an alternate model, use it
+        if (alternateModel) {
+          requestBody.model = alternateModel;
         }
-        // Handle models with reasoning: [true, false] (toggleable reasoning)
-        else if (
-          Array.isArray(selectedModelInfo.reasoning) &&
-          selectedModelInfo.reasoning.length === 2 &&
-          selectedModelInfo.reasoning[0] === true &&
-          selectedModelInfo.reasoning[1] === false
-        ) {
-          // Add reasoning with enabled flag based on model parameters for other models
-          requestBody.reasoning = {
-            enabled: modelParameters?.reasoning?.effort !== "none",
-          };
+        
+        // Add reasoning parameters if any
+        if (reasoningParams) {
+          requestBody.reasoning = reasoningParams;
         }
-        // Handle models with reasoning: true - these have reasoning capabilities but no toggle
-        else if (selectedModelInfo.reasoning === true) {
-          // Special case for deepseek-v3.2-speciale: always send reasoning.enabled=true
-          if (selectedModel === "deepseek/deepseek-v3.2-speciale") {
-            requestBody.reasoning = { enabled: true };
-          }
-          // Add reasoning_effort if specified in model parameters
-          else if (modelParameters?.reasoning?.effort) {
-            requestBody.reasoning = {
-              effort: modelParameters.reasoning.effort,
-            };
-          }
-        }
-        // For models with reasoning: false, don't add any reasoning parameters
       }
 
       // Perform ONE streaming completion and inspect for tool_calls

@@ -11,7 +11,14 @@ import { useWindowSize } from "@vueuse/core";
 import Logo from "./Logo.vue";
 import BottomSheetModelSelector from "./BottomSheetModelSelector.vue";
 import { useAttachments } from "~/composables/useAttachments";
-import { findModelById } from "~/composables/availableModels";
+import { 
+  findModelById, 
+  showReasoningToggle, 
+  showReasoningEffortSelector, 
+  getDefaultReasoningEffort,
+  isReasoningEnabled as checkReasoningEnabled,
+  normalizeReasoningConfig
+} from "~/composables/availableModels";
 
 // Define component properties and emitted events
 const props = defineProps({
@@ -80,139 +87,39 @@ const acceptedFileTypes = computed(() => {
 // Computed property to check if the current model supports reasoning
 const supportsReasoning = computed(() => {
   if (!selectedModel.value) return false;
-
-  const reasoningConfig = selectedModel.value.reasoning;
-  // Models with reasoning: false don't support reasoning
-  if (reasoningConfig === false) return false;
-  // Models with reasoning: true or array or string support reasoning
-  return reasoningConfig !== false;
-});
-
-// Computed property to check if the current model has reasoning effort parameters
-const isReasoningEffortSupported = computed(() => {
-  return selectedModel.value && selectedModel.value.extra_parameters &&
-    selectedModel.value.extra_parameters.reasoning_effort;
-});
-
-// Computed property to check if the current model has toggleable reasoning that requires prepending text (array format with string)
-const hasToggleableTextReasoning = computed(() => {
-  if (!selectedModel.value) return false;
-
-  const reasoningConfig = selectedModel.value.reasoning;
-  // Check if reasoning is an array [default, toggle_string] which requires prepending text
-  return Array.isArray(reasoningConfig) &&
-         reasoningConfig.length >= 2 &&
-         typeof reasoningConfig[1] === 'string' &&
-         reasoningConfig[1] !== 'true' &&
-         reasoningConfig[1] !== 'false';
+  const config = normalizeReasoningConfig(selectedModel.value);
+  return config.supported;
 });
 
 // Computed property to check if the current model should show a reasoning toggle
-// According to requirements:
-// - Models with reasoning: true AND NO REASONING_EFFORT -> NO TOGGLE
-// - Models with reasoning: false -> NO TOGGLE
-// - Models with reasoning: "model-id" -> TOGGLE
-// - Models with reasoning: array -> TOGGLE
-// - Models with reasoning: true AND REASONING_EFFORT -> NO TOGGLE but reasoning effort switcher
-// - Special case: z-ai/glm-4.6 should have reasoning always on but NO TOGGLE displayed
-const showReasoningToggle = computed(() => {
+const shouldShowReasoningToggle = computed(() => {
   if (!selectedModel.value) return false;
-
-  const reasoningConfig = selectedModel.value.reasoning;
-
-  // Special case: z-ai/glm-4.6 should not show a toggle
-  if (selectedModel.value.id === 'z-ai/glm-4.6') return false;
-
-  // Models with reasoning: false never show a toggle
-  if (reasoningConfig === false) return false;
-
-  // Models with reasoning: true and reasoning effort parameters show reasoning effort switcher, not toggle
-  if (reasoningConfig === true && isReasoningEffortSupported.value) return false;
-
-  // Models with reasoning: true and NO reasoning effort don't show toggle
-  if (reasoningConfig === true && !isReasoningEffortSupported.value) return false;
-
-  // Models with reasoning: "model-id" (string) and models with reasoning: array show toggle
-  return Array.isArray(reasoningConfig) || typeof reasoningConfig === 'string';
+  return showReasoningToggle(selectedModel.value);
 });
 
-// Computed property to check if the current model has reasoning effort switcher
-// This is for models that have reasoning: true AND REASONING_EFFORT
-const showReasoningEffortSwitcher = computed(() => {
+// Computed property to check if the current model should show effort selector
+const shouldShowEffortSelector = computed(() => {
   if (!selectedModel.value) return false;
-
-  const reasoningConfig = selectedModel.value.reasoning;
-  // Only show reasoning effort switcher for models with reasoning: true AND reasoning effort parameters
-  return reasoningConfig === true && isReasoningEffortSupported.value;
+  return showReasoningEffortSelector(selectedModel.value);
 });
 
 // Computed property to get reasoning effort options for the current model
-// Reversing the order so that "high" appears at the top and "low" at the bottom
 const reasoningEffortOptions = computed(() => {
-  if (!showReasoningEffortSwitcher.value) return [];
-  const options = selectedModel.value.extra_parameters.reasoning_effort[0];
-  // For GPT OSS models, we want high at top and low at bottom
-  if (selectedModel.value.id.includes('gpt-oss')) {
-    return [...options].reverse();
-  }
-  return options;
+  if (!selectedModel.value || !shouldShowEffortSelector.value) return [];
+  const config = normalizeReasoningConfig(selectedModel.value);
+  return config.effort?.levels || [];
 });
 
 // Computed property to get the default reasoning effort for the current model
 const defaultReasoningEffort = computed(() => {
-  if (!showReasoningEffortSwitcher.value) return "default";
-  return selectedModel.value.extra_parameters.reasoning_effort[1];
+  if (!selectedModel.value) return "default";
+  return getDefaultReasoningEffort(selectedModel.value);
 });
 
 // Computed property to check if reasoning is currently enabled based on the model's configuration
 const isReasoningEnabled = computed(() => {
   if (!selectedModel.value) return false;
-
-  const reasoningConfig = selectedModel.value.reasoning;
-
-  // Special case: z-ai/glm-4.6 always has reasoning enabled
-  if (selectedModel.value.id === 'z-ai/glm-4.6') {
-    return true;
-  }
-
-  // For models with toggleable reasoning (array or string)
-  if (showReasoningToggle.value) {
-    // For [true, false] arrays, reasoning is enabled when effort is not 'none'
-    if (Array.isArray(reasoningConfig) &&
-        reasoningConfig.length === 2 &&
-        reasoningConfig[0] === true &&
-        reasoningConfig[1] === false) {
-      return reasoningEffort.value !== 'none';
-    }
-
-    // For [default, toggle_string] arrays, check based on the default value
-    if (Array.isArray(reasoningConfig) &&
-        reasoningConfig.length >= 2 &&
-        typeof reasoningConfig[1] === 'string' &&
-        reasoningConfig[1] !== 'true' &&
-        reasoningConfig[1] !== 'false') {
-      const [defaultReasoning, toggleString] = reasoningConfig;
-      return defaultReasoning ? reasoningEffort.value !== 'none' : reasoningEffort.value === 'default';
-    }
-
-    // For string (model-id) reasoning, it's enabled when effort is not 'none'
-    if (typeof reasoningConfig === 'string') {
-      return reasoningEffort.value !== 'none';
-    }
-  }
-
-  // For models with reasoning effort parameters, check the current setting
-  if (showReasoningEffortSwitcher.value) {
-    return reasoningEffort.value !== 'none';
-  }
-
-  // For models with reasoning: true without effort params, it's always enabled
-  if (reasoningConfig === true) {
-    return true;
-  }
-
-  // For other models (reasoning: false), it's never enabled
-  return false;
+  return checkReasoningEnabled(selectedModel.value, reasoningEffort.value);
 });
 
 
@@ -221,12 +128,6 @@ watch(
   () => [props.selectedModelId, props.settingsManager?.settings?.model_settings],
   ([newModelId]) => {
     if (newModelId && props.settingsManager) {
-      // Special case: z-ai/glm-4.6 should have reasoning always enabled
-      if (newModelId === 'z-ai/glm-4.6') {
-        reasoningEffort.value = "default";  // Always default for glm-4.6 since it's always on
-        return;
-      }
-
       const savedReasoningEffort = props.settingsManager.getModelSetting(newModelId, "reasoning_effort");
       if (savedReasoningEffort !== undefined) {
         reasoningEffort.value = savedReasoningEffort;
@@ -322,30 +223,8 @@ function handleEnterKey(event) {
  * Emits the message to the parent, then clears the input.
  */
 async function submitMessage() {
-  let processedMessage = inputMessage.value;
-  const originalMessage = inputMessage.value;
-
-  // Handle models with toggleable reasoning that require prepending text
-  if (selectedModel.value && hasToggleableTextReasoning.value) {
-    const reasoningConfig = selectedModel.value.reasoning;
-    if (Array.isArray(reasoningConfig) && reasoningConfig.length >= 2) {
-      const [defaultReasoning, toggleString] = reasoningConfig;
-
-      // If the default behavior is reasoning but reasoning is turned off, prepend the toggle string
-      if (defaultReasoning && !isReasoningEnabled.value && toggleString) {
-        processedMessage = toggleString + " " + processedMessage;
-      }
-      // If the default behavior is non-reasoning but reasoning is turned on, prepend the toggle string
-      else if (!defaultReasoning && isReasoningEnabled.value && toggleString) {
-        processedMessage = toggleString + " " + processedMessage;
-      }
-    }
-  }
-
-  // Emit both the processed message (for API request) and original message (for storage)
-  // Include attachments in the emission
-
-  emit("send-message", processedMessage, originalMessage, toRaw(attachments.value));
+  // Emit the message to parent component
+  emit("send-message", inputMessage.value, inputMessage.value, toRaw(attachments.value));
   inputMessage.value = "";
   // Clear attachments after sending
   clearAttachments();
@@ -392,16 +271,10 @@ function setMessage(text) {
  * Toggles the reasoning state and updates the settings
  */
 function toggleReasoning() {
-  // Special case: z-ai/glm-4.6 cannot have reasoning disabled, so don't toggle
-  if (selectedModel.value?.id === 'z-ai/glm-4.6') {
-    // For GLM 4.6, we don't do anything since reasoning is always on with no toggle
-    return;
-  }
-
-  if (showReasoningToggle.value) {
+  if (shouldShowReasoningToggle.value) {
     // For models with reasoning toggle, toggle between "default" and "none"
     reasoningEffort.value = reasoningEffort.value === "default" ? "none" : "default";
-  } else if (showReasoningEffortSwitcher.value) {
+  } else if (shouldShowEffortSelector.value) {
     // For models with reasoning effort options, cycle through them
     const currentIndex = reasoningEffortOptions.value.indexOf(reasoningEffort.value);
     const nextIndex = (currentIndex + 1) % reasoningEffortOptions.value.length;
@@ -667,7 +540,7 @@ defineExpose({ setMessage, toggleReasoning, setReasoningEffort, $el: messageForm
         </button>
 
         <!-- Reasoning toggle for models that should show a reasoning toggle -->
-        <button v-if="selectedModel && showReasoningToggle && supportsReasoning"
+        <button v-if="selectedModel && shouldShowReasoningToggle && supportsReasoning"
           type="button" class="feature-button search-toggle-btn"
           :class="{ 'search-enabled': isReasoningEnabled }" @click="toggleReasoning"
           :aria-label="isReasoningEnabled ? 'Disable reasoning' : 'Enable reasoning'">
@@ -675,8 +548,8 @@ defineExpose({ setMessage, toggleReasoning, setReasoningEffort, $el: messageForm
           <span class="search-label">Reasoning</span>
         </button>
 
-        <!-- Reasoning effort dropdown for models that support reasoning effort (reasoning: true with effort params) -->
-        <DropdownMenuRoot v-else-if="selectedModel && showReasoningEffortSwitcher">
+        <!-- Reasoning effort dropdown for models that support reasoning effort -->
+        <DropdownMenuRoot v-else-if="selectedModel && shouldShowEffortSelector">
           <DropdownMenuTrigger class="feature-button search-toggle-btn">
             <Icon icon="material-symbols:lightbulb" width="22" height="22" />
             <span>{{ reasoningEffort.charAt(0).toUpperCase() + reasoningEffort.slice(1) }}</span>
