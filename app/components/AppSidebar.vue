@@ -372,7 +372,7 @@ function handleNewConversation() {
 .conversation-list {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
 }
 
 /* Group Header */
