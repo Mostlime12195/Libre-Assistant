@@ -37,7 +37,7 @@
               {{ selectedProvider?.category }}
             </template>
             <template v-else>
-              Select Model
+              {{ filterMaxModeOnly ? 'Select model (Max Mode)' : 'Select Model' }}
             </template>
           </h2>
           <div class="nav-side">
@@ -81,8 +81,8 @@
             v-for="model in selectedProvider?.models"
             :key="model.id"
             class="model-item"
-            :class="{ selected: model.id === selectedModelId }"
-            @click="selectModel(model.id, model.name)"
+            :class="{ selected: model.id === selectedModelId, disabled: excludeModelIds.includes(model.id) }"
+            @click="excludeModelIds.includes(model.id) ? null : selectModel(model.id, model.name)"
           >
             <div class="model-info">
               <span class="model-name">{{ model.name }}</span>
@@ -118,6 +118,14 @@ const props = defineProps({
   selectedModelName: {
     type: String,
     default: ''
+  },
+  filterMaxModeOnly: {
+    type: Boolean,
+    default: false
+  },
+  excludeModelIds: {
+    type: Array,
+    default: () => []
   }
 });
 
@@ -133,7 +141,14 @@ let firstOpen = true;
 
 // Computed providers (only categories, not standalone models)
 const providers = computed(() => {
-  return availableModels.filter(item => item?.category);
+  let list = availableModels.filter(item => item?.category);
+  if (props.filterMaxModeOnly) {
+    list = list.map(p => ({
+      ...p,
+      models: (p.models || []).filter(m => m.maxModeSupported === true)
+    })).filter(p => p.models && p.models.length > 0);
+  }
+  return list;
 });
 
 // Watch for changes in isOpen to reset the state when opening
@@ -390,6 +405,11 @@ const onAnimationComplete = () => {
 .model-item.selected .model-description {
   color: var(--primary-foreground);
   opacity: 0.9;
+}
+
+.model-item.disabled {
+  opacity: 0.6;
+  pointer-events: none;
 }
 
 .model-info {

@@ -8,28 +8,55 @@
         <Icon icon="material-symbols:add-box-outline" width="24" height="24" />
       </button>
       <div class="model-selector-container">
-        <template v-if="!isMobile">
-          <!-- Desktop: Dropdown menu -->
+        <template v-if="!isMobile || maxMode">
           <DropdownMenuRoot>
             <DropdownMenuTrigger class="model-selector-btn"
-              :aria-label="`Change model, currently ${props.selectedModelName}`">
+              :aria-label="`Change model, currently ${maxMode ? 'Max Mode slots' : effectiveSelectedModelName}`">
               <div class="model-logo-name">
-                <Logo v-if="selectedModelLogo" :src="selectedModelLogo" :size="24" class="logo-inline" :alt="props.selectedModelName" />
-                <span class="model-name-display">{{ props.selectedModelName }}</span>
+                <Logo v-if="selectedModelLogo" :src="selectedModelLogo" :size="24" class="logo-inline" :alt="effectiveSelectedModelName" />
+                <span class="model-name-display">{{ maxMode ? '4 models' : effectiveSelectedModelName }}</span>
               </div>
               <Icon icon="material-symbols:keyboard-arrow-down-rounded" width="24" height="24" class="icon" />
             </DropdownMenuTrigger>
 
             <DropdownMenuContent class="model-selector-dropdown" side="bottom" align="start" :side-offset="8">
-              <DropdownMenuLabel class="dropdown-label">Models</DropdownMenuLabel>
+              <DropdownMenuLabel class="dropdown-label">{{ maxMode ? 'Pick a model for each slot' : 'Models' }}</DropdownMenuLabel>
               <DropdownMenuSeparator />
 
-              <!-- Scroll container to preserve dropdown scrolling while allowing submenus to render outside -->
-              <div class="dropdown-scroll-container">
-                <template v-for="item in availableModels" :key="item.id || item.category">
-                  <!-- Regular model (not in a category) -->
+              <div class="dropdown-scroll-container" v-if="maxMode">
+                <DropdownMenuSub v-for="slotIndex in 4" :key="slotIndex">
+                  <DropdownMenuSubTrigger class="category-item">
+                    <span>Slot {{ slotIndex }}: {{ slotModelName(slotIndex - 1) }}</span>
+                    <Icon icon="material-symbols:chevron-right" width="24" height="24" class="icon" />
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent class="subcategory-content">
+                    <template v-for="provider in maxModeModelsList" :key="provider.category">
+                      <DropdownMenuItem
+                        v-for="model in provider.models"
+                        :key="model.id"
+                        class="model-list-item"
+                        :class="{ selected: (maxModeModels && maxModeModels[slotIndex - 1]) === model.id }"
+                        @click="selectModel(model.id, slotIndex - 1)"
+                      >
+                        <div class="model-info">
+                          <div class="model-text">
+                            <strong>{{ model.name }}</strong>
+                            <div class="model-description">{{ model.description }}</div>
+                          </div>
+                        </div>
+                        <span v-if="(maxModeModels && maxModeModels[slotIndex - 1]) === model.id" class="selected-indicator">
+                          <Icon icon="material-symbols:check-rounded" width="24" height="24" class="icon" />
+                        </span>
+                      </DropdownMenuItem>
+                    </template>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              </div>
+
+              <div class="dropdown-scroll-container" v-else>
+                <template v-for="item in modelsForDropdown" :key="item.id || item.category">
                   <DropdownMenuItem v-if="!item.category" class="model-list-item"
-                    :class="{ selected: item.id === props.selectedModelId }" @click="() => selectModel(item.id)">
+                    :class="{ selected: item.id === effectiveSelectedModelId }" @click="() => selectModel(item.id)">
                     <div class="model-info">
                       <Logo v-if="item.logo" :src="item.logo" :size="24" class="logo-inline" :alt="item.name" />
                       <div class="model-text">
@@ -37,12 +64,11 @@
                         <div class="model-description">{{ item.description }}</div>
                       </div>
                     </div>
-                    <span v-if="item.id === props.selectedModelId">
+                    <span v-if="item.id === effectiveSelectedModelId">
                       <Icon icon="material-symbols:check-rounded" width="24" height="24" class="icon" />
                     </span>
                   </DropdownMenuItem>
 
-                  <!-- Category with submodels -->
                   <DropdownMenuSub v-else>
                     <DropdownMenuSubTrigger class="category-item">
                       <Logo :src="item.logo" :size="24" class="logo-inline" :alt="item.category" />
@@ -52,14 +78,14 @@
 
                     <DropdownMenuSubContent class="subcategory-content">
                       <DropdownMenuItem v-for="model in item.models" :key="model.id" class="model-list-item"
-                        :class="{ selected: model.id === props.selectedModelId }" @click="() => selectModel(model.id)">
+                        :class="{ selected: model.id === effectiveSelectedModelId }" @click="() => selectModel(model.id)">
                         <div class="model-info">
                           <div class="model-text">
                             <strong>{{ model.name }}</strong>
                             <div class="model-description">{{ model.description }}</div>
                           </div>
                         </div>
-                        <span v-if="model.id === props.selectedModelId" class="selected-indicator">
+                        <span v-if="model.id === effectiveSelectedModelId" class="selected-indicator">
                           <Icon icon="material-symbols:check-rounded" width="24" height="24" class="icon" />
                         </span>
                       </DropdownMenuItem>
@@ -105,7 +131,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
 } from "reka-ui";
-import { availableModels } from "../composables/availableModels";
+import { availableModels, getMaxModeModelList } from "../composables/availableModels";
 import { Icon } from "@iconify/vue";
 import { useRoute, useRouter } from "vue-router";
 import Logo from "./Logo.vue";
@@ -147,10 +173,18 @@ const props = defineProps({
   parameterConfigOpen: {
     type: Boolean,
     default: false
+  },
+  maxMode: {
+    type: Boolean,
+    default: false
+  },
+  maxModeModels: {
+    type: Array,
+    default: () => []
   }
 });
 
-const emit = defineEmits(['model-selected', 'toggle-incognito', 'toggle-parameter-config']);
+const emit = defineEmits(['model-selected', 'toggle-incognito', 'toggle-parameter-config', 'max-mode-change']);
 
 // Get the current route
 const route = useRoute();
@@ -163,7 +197,32 @@ const handleNewChat = () => {
 // Computed property to check if we're on the incognito route
 const isIncognitoRoute = computed(() => route.path === '/incognito');
 
-// Ref for the top bar element
+const effectiveSelectedModelId = computed(() => props.selectedModelId);
+const effectiveSelectedModelName = computed(() => props.selectedModelName);
+const modelsForDropdown = computed(() => availableModels);
+const maxModeModelsList = computed(() => {
+  return availableModels.map(item => {
+    if (!item.category) return item;
+    const filtered = (item.models || []).filter(m => m.maxModeSupported === true);
+    return filtered.length ? { ...item, models: filtered } : null;
+  }).filter(Boolean);
+});
+
+function selectModel(modelId, slotIndex) {
+  const selectedModel = availableModels.flatMap(item =>
+    item.category ? item.models : item
+  ).find((model) => model.id === modelId);
+  if (selectedModel) {
+    emit('model-selected', modelId, selectedModel.name, slotIndex);
+  }
+}
+
+function slotModelName(slotIndex) {
+  const id = props.maxModeModels && props.maxModeModels[slotIndex];
+  if (!id) return 'Select';
+  const m = availableModels.flatMap(item => item.models || [item]).find(x => x.id === id);
+  return m?.name || id;
+}
 const topBarRef = ref(null);
 
 // Handle both direct boolean values and refs
@@ -173,22 +232,7 @@ const isScrolledTopValue = computed(() => {
     : props.isScrolledTop.value;
 });
 
-function selectModel(modelId) {
-  const selectedModel = availableModels.flatMap(item =>
-    item.category ? item.models : item
-  ).find((model) => model.id === modelId);
-
-  if (selectedModel) {
-    emit('model-selected', modelId, selectedModel.name);
-
-    // Close the bottom sheet on mobile after selection
-    if (isMobile.value) {
-      isBottomSheetOpen.value = false;
-    }
-  }
-}
-
-// Get window size to determine mobile/desktop view
+// Get window size
 const { width: windowWidth } = useWindowSize();
 
 // Computed property to check if we're on a mobile screen
@@ -198,23 +242,16 @@ const isMobile = computed(() => {
 
 // Computed property to get the logo of the currently selected model
 const selectedModelLogo = computed(() => {
-  if (!props.selectedModelId) return null;
-
-  // Look for the selected model in the available models
+  const id = effectiveSelectedModelId.value;
+  if (!id) return null;
   for (const item of availableModels) {
     if (item.category) {
-      // If it's a category, look for the model within it
-      const modelInCategory = item.models.find(model => model.id === props.selectedModelId);
-      if (modelInCategory) {
-        // Return the category logo if the model is found in the category
-        return item.logo;
-      }
-    } else if (item.id === props.selectedModelId) {
-      // If it's a standalone model (not in a category)
+      const modelInCategory = item.models.find(model => model.id === id);
+      if (modelInCategory) return item.logo;
+    } else if (item.id === id) {
       return item.logo;
     }
   }
-
   return null;
 });
 

@@ -3,7 +3,7 @@ import { useRouter } from 'vue-router';
 import localforage from 'localforage';
 import { createConversation as createNewConversation, storeMessages, deleteConversation as deleteConv, updateBranchPath, loadConversation } from './storeConversations';
 import { handleIncomingMessage } from './message';
-import { availableModels, findModelById, normalizeReasoningConfig, getDefaultReasoningEffort } from './availableModels';
+import { availableModels, findModelById, normalizeReasoningConfig, getDefaultReasoningEffort, isMaxModeSupported } from './availableModels';
 import { addMemory, modifyMemory, deleteMemory } from './memory';
 import DEFAULT_PARAMETERS from './defaultParameters';
 import { useSettings } from './useSettings';
@@ -209,26 +209,68 @@ export function useMessagesManager(chatPanel) {
 
     if ((!message.trim() && attachments.length === 0) || isLoading.value) return;
 
-    // Check rate limit (only if not using custom API key)
+    const selectedModelId = settingsManager.settings.selected_model_id;
+    const selectedModelDetails = findModelById(availableModels, selectedModelId);
+    if (!selectedModelDetails) {
+      const tempAssistantMsg = createAssistantMessage();
+      updateAssistantMessage(tempAssistantMsg, {
+        content: "Error: No AI model selected.",
+        complete: true
+      });
+      return;
+    }
+
+    const parameterConfig = settingsManager.settings.parameter_config || { ...DEFAULT_PARAMETERS };
+    const isMaxMode = !!parameterConfig.maxMode;
+    const maxModeModelIds = Array.isArray(parameterConfig.maxModeModels)
+      ? parameterConfig.maxModeModels.filter(Boolean)
+      : [];
+    const maxModeValid = isMaxMode && maxModeModelIds.length === 4
+      && new Set(maxModeModelIds).size === 4
+      && maxModeModelIds.every(id => isMaxModeSupported(availableModels, id));
+
+    if (isMaxMode && !maxModeValid) {
+      const tempAssistantMsg = createAssistantMessage();
+      updateAssistantMessage(tempAssistantMsg, {
+        content: "Max Mode requires 4 different supported models. Select 4 models in the input area.",
+        complete: true,
+        error: true,
+        errorDetails: { name: 'MaxModeError', message: 'Select 4 different models for Max Mode' }
+      });
+      return;
+    }
+
     if (!settingsManager.settings.custom_api_key) {
       const rateLimiter = useRateLimiter();
-      const selectedModelId = settingsManager.settings.selected_model_id;
-      const limitCheck = rateLimiter.checkLimit(selectedModelId);
-
-      if (!limitCheck.canSend) {
-        // Create a temporary message to show the rate limit error
-        const tempAssistantMsg = createAssistantMessage();
-        updateAssistantMessage(tempAssistantMsg, {
-          content: `⚠️ **Rate Limit Reached**\n\n${limitCheck.error}\n\nYou can add your own Hack Club API key in Settings → General to bypass rate limits.`,
-          complete: true,
-          error: true,
-          errorDetails: { name: 'RateLimitError', message: limitCheck.error }
-        });
-        return;
+      if (isMaxMode) {
+        const stats = rateLimiter.getUsageStats();
+        if (stats.general.remaining < 5) {
+          const tempAssistantMsg = createAssistantMessage();
+          updateAssistantMessage(tempAssistantMsg, {
+            content: `⚠️ **Rate Limit**\n\nMax Mode uses 5 requests (4 experts + synthesis). You have ${stats.general.remaining} message(s) left today. Try again tomorrow or use your own API key in Settings → General.`,
+            complete: true,
+            error: true,
+            errorDetails: { name: 'RateLimitError', message: 'Need 5 requests for Max Mode' }
+          });
+          return;
+        }
+        for (let i = 0; i < 5; i++) {
+          rateLimiter.recordRequest(maxModeModelIds[i % 4]);
+        }
+      } else {
+        const limitCheck = rateLimiter.checkLimit(selectedModelId);
+        if (!limitCheck.canSend) {
+          const tempAssistantMsg = createAssistantMessage();
+          updateAssistantMessage(tempAssistantMsg, {
+            content: `⚠️ **Rate Limit Reached**\n\n${limitCheck.error}\n\nYou can add your own Hack Club API key in Settings → General to bypass rate limits.`,
+            complete: true,
+            error: true,
+            errorDetails: { name: 'RateLimitError', message: limitCheck.error }
+          });
+          return;
+        }
+        rateLimiter.recordRequest(selectedModelId);
       }
-
-      // Record the request
-      rateLimiter.recordRequest(selectedModelId);
     }
 
     controller.value = new AbortController();
@@ -260,30 +302,13 @@ export function useMessagesManager(chatPanel) {
     }
 
     await nextTick();
-    // Use requestAnimationFrame for more reliable scrolling
     requestAnimationFrame(() => {
       chatPanel?.value?.scrollToEnd("smooth");
     });
 
-    // Get current model details
-    const selectedModelDetails = findModelById(availableModels, settingsManager.settings.selected_model_id);
-
-    if (!selectedModelDetails) {
-      console.error("No model selected or model details not found. Aborting message send.");
-      updateAssistantMessage(assistantMsg, {
-        content: (assistantMsg.content ? assistantMsg.content + "\n\n" : "") + "Error: No AI model selected.",
-        complete: true
-      });
-      isLoading.value = false;
-      return;
-    }
-
-    // Construct model parameters
     const reasoningConfig = normalizeReasoningConfig(selectedModelDetails);
     const savedReasoningEffort = settingsManager.getModelSetting(selectedModelDetails.id, "reasoning_effort") ||
       getDefaultReasoningEffort(selectedModelDetails);
-
-    const parameterConfig = settingsManager.settings.parameter_config || { ...DEFAULT_PARAMETERS };
 
     const model_parameters = {
       ...parameterConfig,
@@ -309,9 +334,7 @@ export function useMessagesManager(chatPanel) {
       // because handleIncomingMessage will add the user message from the `message` param.
       
       const historyForAPI = visibleMessages.value.filter(msg => {
-        // Exclude incomplete messages (the assistant placeholder we just created)
         if (!msg.complete) return false;
-        // Exclude the current user message - it's always the last user message in visibleMessages
         if (msg.role === 'user') {
           const lastUserMsg = [...visibleMessages.value].reverse().find(m => m.role === 'user');
           if (lastUserMsg && msg.id === lastUserMsg.id) return false;
@@ -319,6 +342,236 @@ export function useMessagesManager(chatPanel) {
         return true;
       });
 
+      if (isMaxMode) {
+        updateAssistantMessage(assistantMsg, {
+          maxModeThinking: true,
+          maxModeThinkingStart: Date.now()
+        });
+        const updateMessageReactivityMax = () => {
+          const idx = messages.value.findIndex(m => m.id === assistantMsg.id);
+          if (idx !== -1) {
+            messages.value.splice(idx, 1, { ...messages.value[idx] });
+          }
+        };
+
+        async function consumeStream(gen) {
+          let content = '';
+          let reasoning = '';
+          const usage = { completion_tokens: 0, prompt_tokens: 0, total_tokens: 0 };
+          for await (const chunk of gen) {
+            if (chunk.content) content += chunk.content;
+            if (chunk.reasoning) reasoning += chunk.reasoning;
+            if (chunk.usage) {
+              usage.completion_tokens += chunk.usage.completion_tokens || 0;
+              usage.prompt_tokens += chunk.usage.prompt_tokens || 0;
+              usage.total_tokens += chunk.usage.total_tokens || 0;
+            }
+            if (chunk.error) return { content, reasoning, usage, error: true, errorDetails: chunk.errorDetails };
+          }
+          return { content, reasoning, usage };
+        }
+
+        function addUsage(msg, usage) {
+          if (!usage) return;
+          msg.tokenCount = (msg.tokenCount || 0) + (usage.completion_tokens || 0);
+          msg.promptTokens = (msg.promptTokens || 0) + (usage.prompt_tokens || 0);
+          msg.totalTokens = (msg.totalTokens || 0) + (usage.total_tokens || 0);
+        }
+
+        const EXPERT_SUFFIX = ' You are one of 4 AI experts. Give a concise analysis; your response will be combined with others. Keep it brief (under ~100 words).';
+        const generators = maxModeModelIds.map((modelId) => {
+          const details = findModelById(availableModels, modelId);
+          const reasoningConfig = normalizeReasoningConfig(details);
+          const savedEffort = settingsManager.getModelSetting(modelId, "reasoning_effort") || getDefaultReasoningEffort(details);
+          const modelParams = {
+            ...parameterConfig,
+            ...(details?.extra_parameters || {}),
+            systemPromptSuffix: EXPERT_SUFFIX,
+            max_tokens: 400,
+            reasoning: {
+              effort: savedEffort,
+              enabled: reasoningConfig.toggleable ? savedEffort !== 'none' : true
+            }
+          };
+          return handleIncomingMessage(
+            message,
+            historyForAPI,
+            controller.value,
+            modelId,
+            modelParams,
+            settingsManager.settings,
+            details?.extra_functions || [],
+            parameterConfig.grounding ?? DEFAULT_PARAMETERS.grounding,
+            isIncognito.value,
+            attachments
+          );
+        });
+        const results = await Promise.all(generators.map(gen => consumeStream(gen)));
+        results.forEach(r => addUsage(assistantMsg, r.usage));
+        updateMessageReactivityMax();
+        const hasError = results.some(r => r.error);
+        if (hasError) {
+          const errMsg = results.find(r => r.error);
+          updateAssistantMessage(assistantMsg, {
+            maxModeThinking: false,
+            content: `\n\n[Max Mode error: ${errMsg?.errorDetails?.message || 'One or more experts failed'}]`,
+            complete: true,
+            error: true,
+            errorDetails: errMsg?.errorDetails || { name: 'MaxModeError', message: 'Expert phase failed' }
+          });
+        } else {
+          const expertResponses = results.map((r, i) => {
+            const details = findModelById(availableModels, maxModeModelIds[i]);
+            return {
+              modelId: maxModeModelIds[i],
+              modelName: details?.name || maxModeModelIds[i],
+              content: (r.reasoning?.trim() ? r.reasoning.trim() + '\n\n' : '') + (r.content || '').trim()
+            };
+          });
+          const rounds = [{ round: 1, answers: expertResponses }];
+          const REFINED_SUFFIX = ' You have seen the other experts\' answers. Give your refined answer only (concise, under ~80 words).';
+          const refinedPrompts = maxModeModelIds.map((_, i) => {
+            const blocks = expertResponses.map((ex, j) => `--- Expert ${j + 1} ---\n${ex.content}`).join('\n\n');
+            return `User asked:\n\n${message}\n\nAll experts\' initial answers:\n\n${blocks}\n\nNow give your refined answer after seeing the others.`;
+          });
+          const refinedGens = maxModeModelIds.map((modelId, i) => {
+            const details = findModelById(availableModels, modelId);
+            const reasoningConfig = normalizeReasoningConfig(details);
+            const savedEffort = settingsManager.getModelSetting(modelId, "reasoning_effort") || getDefaultReasoningEffort(details);
+            const modelParams = {
+              ...parameterConfig,
+              ...(details?.extra_parameters || {}),
+              systemPromptSuffix: REFINED_SUFFIX,
+              max_tokens: 300,
+              reasoning: { effort: savedEffort, enabled: reasoningConfig.toggleable ? savedEffort !== 'none' : true }
+            };
+            return handleIncomingMessage(refinedPrompts[i], [], controller.value, modelId, modelParams, settingsManager.settings, details?.extra_functions || [], parameterConfig.grounding ?? DEFAULT_PARAMETERS.grounding, isIncognito.value, []);
+          });
+          const refinedResults = await Promise.all(refinedGens.map(gen => consumeStream(gen)));
+          refinedResults.forEach(r => addUsage(assistantMsg, r.usage));
+          updateMessageReactivityMax();
+          const refinedHasError = refinedResults.some(r => r.error);
+          if (refinedHasError) {
+            const errMsg = refinedResults.find(r => r.error);
+            updateAssistantMessage(assistantMsg, {
+              maxModeThinking: false,
+              content: `\n\n[Max Mode error: ${errMsg?.errorDetails?.message || 'Refined round failed'}]`,
+              complete: true,
+              error: true,
+              errorDetails: errMsg?.errorDetails || { name: 'MaxModeError', message: 'Refined round failed' }
+            });
+          } else {
+          const refinedAnswers = refinedResults.map((r, i) => {
+            const details = findModelById(availableModels, maxModeModelIds[i]);
+            return {
+              modelId: maxModeModelIds[i],
+              modelName: details?.name || maxModeModelIds[i],
+              content: (r.reasoning?.trim() ? r.reasoning.trim() + '\n\n' : '') + (r.content || '').trim()
+            };
+          });
+          rounds.push({ round: 2, answers: refinedAnswers });
+
+          function parseVote(text) {
+            const t = (text || '').toUpperCase().replace(/\s/g, '');
+            const m = t.match(/\b([ABCD])\b/);
+            if (m) return { A: 0, B: 1, C: 2, D: 3 }[m[1]];
+            if (/^[ABCD]$/.test(t)) return { A: 0, B: 1, C: 2, D: 3 }[t];
+            return null;
+          }
+
+          let currentAnswers = refinedAnswers;
+          let voteRound = 0;
+          let votesByModel = [];
+          let winnerIndex = null;
+          const MAX_TIE_BREAKS = 1;
+
+          while (true) {
+            const votePrompt = `Answers:\nA) ${currentAnswers[0].content.slice(0, 400)}\nB) ${currentAnswers[1].content.slice(0, 400)}\nC) ${currentAnswers[2].content.slice(0, 400)}\nD) ${currentAnswers[3].content.slice(0, 400)}\n\nWhich is best? Reply with only one letter: A, B, C, or D.`;
+            const voteGens = maxModeModelIds.map((modelId) => {
+              const details = findModelById(availableModels, modelId);
+              const reasoningConfig = normalizeReasoningConfig(details);
+              const savedEffort = settingsManager.getModelSetting(modelId, "reasoning_effort") || getDefaultReasoningEffort(details);
+              const modelParams = {
+                ...parameterConfig,
+                ...(details?.extra_parameters || {}),
+                systemPromptOverride: 'Reply with only one letter: A, B, C, or D. Nothing else.',
+                max_tokens: 10,
+                reasoning: { effort: savedEffort, enabled: false }
+              };
+              return handleIncomingMessage(votePrompt, [], controller.value, modelId, modelParams, settingsManager.settings, [], parameterConfig.grounding ?? DEFAULT_PARAMETERS.grounding, isIncognito.value, []);
+            });
+            const voteResults = await Promise.all(voteGens.map(gen => consumeStream(gen)));
+            voteResults.forEach(r => addUsage(assistantMsg, r.usage));
+            updateMessageReactivityMax();
+            const votes = voteResults.map((r, i) => {
+              const details = findModelById(availableModels, maxModeModelIds[i]);
+              const raw = (r.content || '').trim();
+              const v = parseVote(raw);
+              return { modelName: details?.name || maxModeModelIds[i], vote: v, raw };
+            });
+            votesByModel = votes;
+            const tally = [0, 0, 0, 0];
+            votes.forEach(({ vote }) => {
+              if (vote != null && vote >= 0 && vote <= 3) tally[vote]++;
+            });
+            const maxVotes = Math.max(...tally);
+            const winners = tally.map((c, i) => c === maxVotes ? i : -1).filter(i => i >= 0);
+            if (winners.length === 1) {
+              winnerIndex = winners[0];
+              break;
+            }
+            if (voteRound >= MAX_TIE_BREAKS) {
+              winnerIndex = winners[0];
+              break;
+            }
+            const tieBreakPrompt = `User asked: ${message}\n\nRefined answers (vote was tie):\n${currentAnswers.map((a, i) => `${String.fromCharCode(65 + i)}) ${a.content}`).join('\n\n')}\n\nGive a new concise answer (under 60 words).`;
+            const tieBreakGens = maxModeModelIds.map((modelId) => {
+              const details = findModelById(availableModels, modelId);
+              const reasoningConfig = normalizeReasoningConfig(details);
+              const savedEffort = settingsManager.getModelSetting(modelId, "reasoning_effort") || getDefaultReasoningEffort(details);
+              const modelParams = {
+                ...parameterConfig,
+                ...(details?.extra_parameters || {}),
+                systemPromptSuffix: ' One short paragraph only.',
+                max_tokens: 200,
+                reasoning: { effort: savedEffort, enabled: reasoningConfig.toggleable ? savedEffort !== 'none' : true }
+              };
+              return handleIncomingMessage(tieBreakPrompt, [], controller.value, modelId, modelParams, settingsManager.settings, details?.extra_functions || [], parameterConfig.grounding ?? DEFAULT_PARAMETERS.grounding, isIncognito.value, []);
+            });
+            const tieBreakResults = await Promise.all(tieBreakGens.map(gen => consumeStream(gen)));
+            tieBreakResults.forEach(r => addUsage(assistantMsg, r.usage));
+            updateMessageReactivityMax();
+            currentAnswers = tieBreakResults.map((r, i) => {
+              const details = findModelById(availableModels, maxModeModelIds[i]);
+              return {
+                modelId: maxModeModelIds[i],
+                modelName: details?.name || maxModeModelIds[i],
+                content: (r.reasoning?.trim() ? r.reasoning.trim() + '\n\n' : '') + (r.content || '').trim()
+              };
+            });
+            rounds.push({ round: 3 + voteRound, answers: currentAnswers });
+            voteRound++;
+          }
+
+          const winningContent = currentAnswers[winnerIndex].content;
+          updateAssistantMessage(assistantMsg, {
+            maxModeThinking: false,
+            maxModeExpertResponses: rounds[0].answers,
+            maxModeRounds: rounds,
+            maxModeVotes: votesByModel,
+            maxModeWinnerIndex: winnerIndex
+          });
+          updateMessageReactivityMax();
+          partsBuilder.appendContent(winningContent);
+          assistantMsg.content = winningContent;
+          assistantMsg.parts = partsBuilder.toArray();
+          assistantMsg.tool_calls = partsBuilder.getAllTools();
+          const finalMsg = { ...assistantMsg, parts: assistantMsg.parts, tool_calls: assistantMsg.tool_calls };
+          const idx = messages.value.findIndex(m => m.id === assistantMsg.id);
+          if (idx !== -1) messages.value.splice(idx, 1, finalMsg);
+          }
+        }
+      } else {
       const streamGenerator = handleIncomingMessage(
         message,
         historyForAPI,
@@ -435,6 +688,7 @@ export function useMessagesManager(chatPanel) {
 
       // Final flush after stream completes to ensure all content is rendered
       updateMessageReactivity();
+      }
 
     } catch (error) {
       console.error('Error in stream processing:', error);

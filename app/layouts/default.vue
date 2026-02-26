@@ -21,7 +21,11 @@
       <TopBar :is-scrolled-top="isScrolledTop" :selected-model-name="selectedModelName"
         :selected-model-id="selectedModelId" :toggle-sidebar="toggleSidebar" :sidebar-open="sidebarOpen"
         :is-incognito="isIncognito" :show-incognito-button="!route.params.id && messages.length === 0" :messages="messages"
-        :parameter-config-open="parameterConfigPanelOpen" @model-selected="handleModelSelect"
+        :parameter-config-open="parameterConfigPanelOpen"
+        :max-mode="maxMode"
+        :max-mode-models="maxModeModelsArray"
+        @model-selected="handleModelSelect"
+        @max-mode-change="handleMaxModeChange"
         @toggle-incognito="toggleIncognito"
         @toggle-parameter-config="parameterConfigPanelOpen = !parameterConfigPanelOpen" />
 
@@ -85,6 +89,11 @@ const { isIncognito, toggleIncognito: globalToggleIncognito } = useGlobalIncogni
 // Compute selectedModelName from settingsManager to maintain reactivity
 const selectedModelName = computed(() => settingsManager.selectedModelName);
 const selectedModelId = computed(() => settingsManager.settings.selected_model_id);
+const maxModeModelsArray = computed(() => {
+  const arr = settingsManager.settings?.parameter_config?.maxModeModels;
+  return Array.isArray(arr) ? arr : [];
+});
+const maxMode = computed(() => !!settingsManager.settings?.parameter_config?.maxMode);
 
 // Initialize shortcut keys
 const keys = useMagicKeys()
@@ -95,10 +104,10 @@ const mod = isMac ? keys.meta : keys.ctrl;
 const route = useRoute(); // Get current route
 const router = useRouter();
 
-const sidebarOpen = ref(true); // Set to false initially, will be updated in onMounted
+const sidebarOpen = ref(true);
 const parameterConfigPanelOpen = ref(false);
 const isSettingsOpen = ref(false);
-const settingsInitialTab = ref('general'); // Controls which tab opens in settings panel
+const settingsInitialTab = ref('general');
 
 // Set up dynamic page title
 const title = computed(() => {
@@ -181,10 +190,32 @@ function handleNewConversation() {
 
 /**
  * Handles model selection from the TopBar component.
- * Updates the settings with the selected model.
+ * When slotIndex is 0-3, assigns the model to that Max Mode slot; otherwise sets main model.
  */
-function handleModelSelect(modelId, modelName) {
-  settingsManager.settings.selected_model_id = modelId;
+function handleModelSelect(modelId, modelName, slotIndex) {
+  if (typeof slotIndex === 'number' && slotIndex >= 0 && slotIndex <= 3) {
+    const paramConfig = settingsManager.settings?.parameter_config || {};
+    const next = [...(paramConfig.maxModeModels || ['', '', '', ''])];
+    next[slotIndex] = modelId;
+    if (!settingsManager.settings.parameter_config) {
+      settingsManager.settings.parameter_config = {};
+    }
+    settingsManager.settings.parameter_config.maxModeModels = next;
+    settingsManager.saveSettings();
+  } else {
+    settingsManager.settings.selected_model_id = modelId;
+    settingsManager.saveSettings();
+  }
+}
+
+function handleMaxModeChange(on) {
+  if (!settingsManager.settings.parameter_config) {
+    settingsManager.settings.parameter_config = {};
+  }
+  settingsManager.settings.parameter_config.maxMode = !!on;
+  if (on && (!settingsManager.settings.parameter_config.maxModeModels || settingsManager.settings.parameter_config.maxModeModels.length !== 4)) {
+    settingsManager.settings.parameter_config.maxModeModels = ['', '', '', ''];
+  }
   settingsManager.saveSettings();
 }
 

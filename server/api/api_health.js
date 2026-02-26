@@ -5,6 +5,7 @@ export default defineEventHandler(async (event) => {
         const response = await fetch("https://ai.hackclub.com/up");
 
         if (!response.ok) {
+            console.error(`Health check failed: ${response.status} ${response.statusText}`);
             return { status: "down", reason: "api_unreachable" };
         }
 

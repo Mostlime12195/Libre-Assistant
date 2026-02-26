@@ -17,7 +17,8 @@ import {
   showReasoningEffortSelector, 
   getDefaultReasoningEffort,
   isReasoningEnabled as checkReasoningEnabled,
-  normalizeReasoningConfig
+  normalizeReasoningConfig,
+  isMaxModeSupported
 } from "~/composables/availableModels";
 
 // Define component properties and emitted events
@@ -122,6 +123,31 @@ const isReasoningEnabled = computed(() => {
   return checkReasoningEnabled(selectedModel.value, reasoningEffort.value);
 });
 
+const paramConfig = computed(() => props.settingsManager?.settings?.parameter_config || {});
+const maxMode = computed({
+  get: () => paramConfig.value.maxMode === true,
+  set: (v) => {
+    if (!props.settingsManager) return;
+    if (!props.settingsManager.settings.parameter_config) {
+      props.settingsManager.settings.parameter_config = { maxMode: false, maxModeModels: [] };
+    }
+    props.settingsManager.settings.parameter_config.maxMode = v;
+    if (v && (!props.settingsManager.settings.parameter_config.maxModeModels || props.settingsManager.settings.parameter_config.maxModeModels.length !== 4)) {
+      props.settingsManager.settings.parameter_config.maxModeModels = ['', '', '', ''];
+    }
+    props.settingsManager.saveSettings();
+  }
+});
+const maxModeModels = computed(() => {
+  const arr = paramConfig.value.maxModeModels;
+  if (!Array.isArray(arr)) return ['', '', '', ''];
+  return [arr[0] ?? '', arr[1] ?? '', arr[2] ?? '', arr[3] ?? ''];
+});
+const maxModeValid = computed(() => {
+  const ids = maxModeModels.value.filter(Boolean);
+  return ids.length === 4 && new Set(ids).size === 4 && ids.every(id => isMaxModeSupported(props.availableModels || [], id));
+});
+const canSendWithMaxMode = computed(() => maxModeValid.value);
 
 // Watch the selected model and load the appropriate reasoning effort setting
 watch(
@@ -167,12 +193,16 @@ function closeBottomSheet() {
   isBottomSheetOpen.value = false;
 }
 
+function handleSheetModelSelected(modelId, modelName) {
+  handleModelSelect(modelId, modelName);
+  closeBottomSheet();
+}
+
 function handleModelSelect(modelId, modelName) {
   if (props.settingsManager) {
     props.settingsManager.settings.selected_model_id = modelId;
     props.settingsManager.saveSettings();
   }
-  closeBottomSheet();
 }
 
 // --- Event Handlers ---
@@ -223,12 +253,10 @@ function handleEnterKey(event) {
  * Emits the message to the parent, then clears the input.
  */
 async function submitMessage() {
-  // Emit the message to parent component
+  if (maxMode.value && !canSendWithMaxMode.value) return;
   emit("send-message", inputMessage.value, inputMessage.value, toRaw(attachments.value));
   inputMessage.value = "";
-  // Clear attachments after sending
   clearAttachments();
-  // Force textarea resize after clearing
   await nextTick();
   if (textareaRef.value) {
     textareaRef.value.style.height = "auto";
@@ -493,7 +521,6 @@ defineExpose({ setMessage, toggleReasoning, setReasoningEffort, $el: messageForm
 
       <!-- Attachment previews -->
       <div v-if="hasAttachments || isProcessingFiles" class="attachment-preview-row">
-        <!-- Processing indicator -->
         <div v-if="isProcessingFiles" class="attachment-preview processing">
           <div class="processing-spinner"></div>
           <span class="attachment-name">Processing...</span>
@@ -539,6 +566,18 @@ defineExpose({ setMessage, toggleReasoning, setReasoningEffort, $el: messageForm
           <Icon icon="material-symbols:add" width="22" height="22" />
         </button>
 
+        <button
+          type="button"
+          class="feature-button max-mode-btn"
+          :class="{ 'max-mode-on': maxMode }"
+          @click="maxMode = !maxMode"
+          aria-label="Toggle Max Mode (4 models)"
+          title="Max Mode: 4 different models answer together (4 requests)"
+        >
+          <Icon icon="material-symbols:groups" width="22" height="22" />
+          <span class="search-label">Max</span>
+        </button>
+
         <!-- Reasoning toggle for models that should show a reasoning toggle -->
         <button v-if="selectedModel && shouldShowReasoningToggle && supportsReasoning"
           type="button" class="feature-button search-toggle-btn"
@@ -575,7 +614,7 @@ defineExpose({ setMessage, toggleReasoning, setReasoningEffort, $el: messageForm
             <span class="model-name-truncate">{{ props.selectedModelName }}</span>
           </button>
 
-          <button type="submit" class="action-btn send-btn" :disabled="!trimmedMessage && !isLoading"
+          <button type="submit" class="action-btn send-btn" :disabled="(!trimmedMessage && !isLoading) || (maxMode && !canSendWithMaxMode)"
             @click="handleActionClick" :aria-label="isLoading ? 'Stop generation' : 'Send message'">
             <Icon v-if="!isLoading" icon="material-symbols:arrow-upward-rounded" width="22" height="22" />
             <Icon v-else icon="material-symbols:stop-rounded" width="22" height="22" />
@@ -590,8 +629,10 @@ defineExpose({ setMessage, toggleReasoning, setReasoningEffort, $el: messageForm
     :is-open="isBottomSheetOpen"
     :selected-model-id="props.selectedModelId"
     :selected-model-name="props.selectedModelName"
+    :filter-max-mode-only="false"
+    :exclude-model-ids="[]"
     @close="closeBottomSheet"
-    @model-selected="handleModelSelect"
+    @model-selected="handleSheetModelSelected"
   />
 </template>
 
@@ -720,6 +761,12 @@ defineExpose({ setMessage, toggleReasoning, setReasoningEffort, $el: messageForm
 .search-toggle-btn.search-enabled:hover:not(:disabled) {
   background-color: var(--primary-600);
   border-color: var(--primary-600);
+}
+
+.max-mode-btn.max-mode-on {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
 }
 
 .input-actions {
