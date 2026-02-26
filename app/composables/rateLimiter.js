@@ -1,7 +1,7 @@
 /**
  * @file rateLimiter.js
  * @description Client-side daily rate limiter using localStorage for persistence.
- * Limits: 96 general requests/day, 12 image generation requests/day.
+ * Limits: 96 general requests/day, 8 image generation requests/day.
  * Resets at midnight local time.
  */
 
@@ -9,7 +9,7 @@ import { ref, computed } from 'vue';
 
 // Rate limit configuration
 const GENERAL_LIMIT = 96;
-const IMAGE_LIMIT = 12;
+const IMAGE_LIMIT = 8;
 const STORAGE_KEY = 'libre_rate_limits';
 
 // Image generation model IDs
@@ -24,6 +24,11 @@ const IMAGE_GENERATION_MODELS = [
 function getTodayStart() {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+}
+
+function getNextResetTime() {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 }
 
 /**
@@ -75,6 +80,22 @@ function getOrCreateTodayData() {
 // Reactive state
 const rateLimitData = ref(getOrCreateTodayData());
 
+export const usageStats = computed(() => {
+  const data = rateLimitData.value;
+  return {
+    general: {
+      used: data.generalCount,
+      limit: GENERAL_LIMIT,
+      remaining: Math.max(0, GENERAL_LIMIT - data.generalCount)
+    },
+    image: {
+      used: data.imageCount,
+      limit: IMAGE_LIMIT,
+      remaining: Math.max(0, IMAGE_LIMIT - data.imageCount)
+    }
+  };
+});
+
 /**
  * Check if a model is an image generation model
  */
@@ -124,14 +145,13 @@ function recordRequest(modelId) {
     rateLimitData.value = getOrCreateTodayData();
 
     const isImage = isImageGenerationModel(modelId);
-
-    if (isImage) {
-        rateLimitData.value.imageCount++;
-    } else {
-        rateLimitData.value.generalCount++;
-    }
-
-    saveRateLimitData(rateLimitData.value);
+    const next = {
+        ...rateLimitData.value,
+        generalCount: rateLimitData.value.generalCount + (isImage ? 0 : 1),
+        imageCount: rateLimitData.value.imageCount + (isImage ? 1 : 0)
+    };
+    rateLimitData.value = next;
+    saveRateLimitData(next);
 }
 
 /**
@@ -162,6 +182,8 @@ export function useRateLimiter() {
         checkLimit,
         recordRequest,
         getUsageStats,
+        usageStats,
+        getNextResetTime,
         isImageGenerationModel,
         GENERAL_LIMIT,
         IMAGE_LIMIT

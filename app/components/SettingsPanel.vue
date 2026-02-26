@@ -5,6 +5,7 @@ import { useDark, useToggle } from "@vueuse/core";
 import { SwitchRoot, SwitchThumb } from "reka-ui";
 import { Icon } from "@iconify/vue";
 import { listMemory, deleteMemory, clearAllMemory } from "@/composables/memory";
+import { useRateLimiter } from "@/composables/rateLimiter";
 
 // Define props and emits
 const props = defineProps(["isOpen", "initialTab"]);
@@ -12,6 +13,7 @@ const emit = defineEmits(["reloadSettings", "close"]);
 
 // --- Reactive State Variables ---
 const settingsManager = useSettings();
+const { usageStats, getNextResetTime } = useRateLimiter();
 const currTab = ref("general");
 const isDark = useDark();
 const toggleDark = useToggle(isDark);
@@ -133,6 +135,13 @@ async function saveSettings() {
   location.reload();
 }
 
+function formatResetTime() {
+  const d = getNextResetTime();
+  const isTomorrow = d.getDate() !== new Date().getDate();
+  const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return isTomorrow ? `Tomorrow at ${time}` : `Tonight at ${time}`;
+}
+
 async function removeMemoryFact(fact) {
   try {
     await deleteMemory(fact);
@@ -233,6 +242,36 @@ async function handleClearAllMemory() {
                   >
                     <Icon :icon="showApiKey ? 'material-symbols:visibility-off' : 'material-symbols:visibility'" width="20" height="20" />
                   </button>
+                </div>
+              </div>
+
+              <div class="setting-item usage-section">
+                <div class="setting-info">
+                  <h3>Daily usage</h3>
+                  <p>Limits reset at midnight (local time)</p>
+                </div>
+                <div class="usage-stats">
+                  <div class="usage-stat-row">
+                    <span class="usage-stat-label">Messages</span>
+                    <div class="usage-bar-track">
+                      <div
+                        class="usage-bar-fill"
+                        :style="{ width: `${Math.min(100, (usageStats.general.used / usageStats.general.limit) * 100)}%` }"
+                      />
+                    </div>
+                    <span class="usage-stat-count">{{ usageStats.general.used }} / {{ usageStats.general.limit }}</span>
+                  </div>
+                  <div class="usage-stat-row">
+                    <span class="usage-stat-label">Images</span>
+                    <div class="usage-bar-track">
+                      <div
+                        class="usage-bar-fill"
+                        :style="{ width: `${Math.min(100, (usageStats.image.used / usageStats.image.limit) * 100)}%` }"
+                      />
+                    </div>
+                    <span class="usage-stat-count">{{ usageStats.image.used }} / {{ usageStats.image.limit }}</span>
+                  </div>
+                  <p class="usage-reset">{{ formatResetTime() }}</p>
                 </div>
               </div>
             </div>
@@ -687,6 +726,63 @@ async function handleClearAllMemory() {
 .toggle-visibility-btn:hover {
   background: var(--btn-hover);
   color: var(--text-primary);
+}
+
+.usage-section {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.usage-section .setting-info {
+  margin-bottom: 0.5rem;
+}
+
+.usage-stats {
+  width: 100%;
+  max-width: 400px;
+}
+
+.usage-stat-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.usage-stat-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  min-width: 72px;
+}
+
+.usage-stats .usage-bar-track {
+  flex: 1;
+  height: 8px;
+  background: var(--bg-input);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.usage-stats .usage-bar-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 4px;
+  transition: width 0.2s ease;
+}
+
+.usage-stat-count {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  min-width: 3em;
+  text-align: right;
+}
+
+.usage-reset {
+  margin: 8px 0 0;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
 }
 
 .switch-container {

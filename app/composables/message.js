@@ -204,24 +204,27 @@ export async function* handleIncomingMessage(
       const healthResponse = await fetch("/api/api_health");
       const health = await healthResponse.json();
 
-      // Check for various unavailability conditions
+      console.log("Health check result:", {
+        status: health.status,
+        dailyKeyUsageRemaining: health.dailyKeyUsageRemaining,
+        balanceRemaining: health.balanceRemaining,
+        timestamp: health.timestamp
+      });
       if (health.status === "down" || health.dailyKeyUsageRemaining <= 0 || health.balanceRemaining <= 0) {
-        let message = "⚠️ **Service Unavailable**\n\n";
+        let warningMessage = "⚠️ Service Status Warning: ";
 
         if (health.dailyKeyUsageRemaining !== undefined && health.dailyKeyUsageRemaining <= 0) {
-          message += "Daily API budget exhausted. Try again tomorrow or add your own API key in Settings → General.";
+          warningMessage += "Daily API budget exhausted. Try again tomorrow or add your own API key.";
         } else if (health.balanceRemaining !== undefined && health.balanceRemaining <= 0) {
-          message += "API balance depleted. Service temporarily unavailable.";
+          warningMessage += "API balance depleted.";
         } else {
-          message += "Service temporarily unavailable. Please try again later.";
+          warningMessage += "Service temporarily unavailable.";
         }
 
-        yield { content: message, reasoning: null };
-        return;
+        console.warn(warningMessage);
       }
     } catch (error) {
       console.error("Health check failed:", error);
-      // We'll continue anyway, in case it was just the health check endpoint failing
     }
 
     // Find the selected model info
@@ -261,13 +264,18 @@ export async function* handleIncomingMessage(
 
     // Generate system prompt based on settings and used tools
     // In incognito mode, use empty settings to avoid customization
-    const systemPrompt = await generateSystemPrompt(
+    let systemPrompt = await generateSystemPrompt(
       enabledToolNames,
       isIncognito ? {} : settings,
       memoryFacts,
-      isIncognito, // Pass incognito mode state
-      modelHasToolUse // Pass tool use capability
+      isIncognito,
+      modelHasToolUse
     );
+    if (modelParameters.systemPromptOverride) {
+      systemPrompt = modelParameters.systemPromptOverride;
+    } else if (modelParameters.systemPromptSuffix) {
+      systemPrompt = systemPrompt + modelParameters.systemPromptSuffix;
+    }
 
     // Build user message content based on attachments
     let userMessageContent;
@@ -347,6 +355,7 @@ export async function* handleIncomingMessage(
           temperature: modelParameters.temperature,
           top_p: modelParameters.top_p,
           seed: modelParameters.seed,
+          ...(modelParameters.max_tokens != null && { max_tokens: modelParameters.max_tokens }),
         }),
         // Pass custom API key if set
         ...(settings.custom_api_key && { customApiKey: settings.custom_api_key }),

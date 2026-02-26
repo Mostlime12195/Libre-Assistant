@@ -13,6 +13,15 @@ All notable changes to Libre Assistant are documented here.
 
 ---
 
+## [0.9.2] - 2026-02-25
+
+### Added
+- Deepseek R1 0528 Model
+- Display The Usage Limits on Sidebar
+
+### Changed
+- Modified the Images Limit to 8 from 12.
+
 ## [0.9.1] - 2026-02-19
 
 ### Added

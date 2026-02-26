@@ -195,6 +195,26 @@ export function findModelById(models, id) {
   return null;
 }
 
+export function isMaxModeSupported(models, id) {
+  const model = findModelById(models, id);
+  return model?.maxModeSupported === true;
+}
+
+export function getMaxModeModelList(models) {
+  if (!models || !Array.isArray(models)) return [];
+  const out = [];
+  for (const item of models) {
+    if (item.models && Array.isArray(item.models)) {
+      for (const m of item.models) {
+        if (m.maxModeSupported === true && m.id) out.push({ id: m.id, name: m.name || m.id });
+      }
+    } else if (item.id && item.maxModeSupported === true) {
+      out.push({ id: item.id, name: item.name || item.id });
+    }
+  }
+  return out;
+}
+
 export const availableModels = [
   {
     category: "DeepSeek",
@@ -217,11 +237,24 @@ export const availableModels = [
         name: "DeepSeek V3.2",
         description: "Advanced general-purpose model designed with efficiency in mind.",
         tool_use: true,
+        maxModeSupported: true,
         reasoning: {
           supported: true,
           toggleable: true,
           defaultEnabled: true
         },
+      },
+      {
+        id: "deepseek/deepseek-r1-0528",
+        name: "DeepSeek R1 0528",
+        description: "Reasoning model for complex chain-of-thought and step-by-step tasks.",
+        tool_use: false,
+        reasoning: {
+          supported: true,
+          toggleable: false
+        },
+        extra_functions: [],
+        extra_parameters: {}
       },
     ],
   },
@@ -292,6 +325,7 @@ export const availableModels = [
         name: "Kimi K2.5",
         description: "SOTA open-weights model with exceptional EQ, coding, and agentic abilities.",
         vision: true,
+        maxModeSupported: true,
         reasoning: {
           supported: true,
           toggleable: true,
@@ -302,6 +336,7 @@ export const availableModels = [
         id: "moonshotai/kimi-k2-0905",
         name: "Kimi K2",
         description: "Older open-weights model with great EQ and coding abilities.",
+        maxModeSupported: true,
         reasoning: {
           supported: true,
           toggleable: true,
@@ -343,6 +378,7 @@ export const availableModels = [
         id: "openai/gpt-oss-120b",
         name: "GPT OSS 120B",
         description: "High-performance open-weights model with exceptional STEM capabilities.",
+        maxModeSupported: true,
         reasoning: {
           supported: true,
           toggleable: false,
@@ -441,6 +477,7 @@ export const availableModels = [
         id: "z-ai/glm-5",
         name: "GLM 5",
         description: "Frontier open-weight model excelling at coding and math",
+        maxModeSupported: true,
         reasoning: {
           supported: true,
           toggleable: true,
@@ -451,6 +488,7 @@ export const availableModels = [
         id: "z-ai/glm-4.7",
         name: "GLM 4.7",
         description: "High-quality open-weight model excelling at coding and math",
+        maxModeSupported: true,
         reasoning: {
           supported: true,
           toggleable: true,
@@ -461,6 +499,7 @@ export const availableModels = [
         id: "z-ai/glm-4.7-flash",
         name: "GLM 4.7 Flash",
         description: "SOTA 30B-class model with excelent agentic capabilities",
+        maxModeSupported: true,
         reasoning: {
           supported: true,
           toggleable: true,
@@ -471,6 +510,7 @@ export const availableModels = [
         id: "z-ai/glm-4.6",
         name: "GLM 4.6",
         description: "Reliable bilingual model for reasoning and tool use.",
+        maxModeSupported: true,
         reasoning: {
           supported: true,
           toggleable: true,

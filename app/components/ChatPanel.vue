@@ -97,6 +97,8 @@ function formatStatValue(value, type) {
 
 const liveReasoningTimers = reactive({});
 const timerIntervals = {};
+const maxModeThinkingTimers = reactive({});
+const maxModeTimerIntervals = {};
 const messageLoadingStates = reactive({});
 
 // Phase 2.2: Message stats cache
@@ -104,7 +106,34 @@ const messageStatsCache = reactive({});
 
 function formatDuration(ms) {
   if (ms < 1000) return `${ms}ms`;
+  if (ms >= 60000) {
+    const m = Math.floor(ms / 60000);
+    const s = Math.floor((ms % 60000) / 1000);
+    return s > 0 ? `${m}m ${s}s` : `${m}m`;
+  }
   return `${(ms / 1000).toFixed(1)}s`;
+}
+
+function getDetailedStatusMessage(message) {
+  if (!message.maxModeThinking) {
+    return null;
+  }
+
+  const elapsed = Date.now() - (message.maxModeThinkingStart || Date.now());
+
+  if (!message.maxModeExpertResponses || message.maxModeExpertResponses.length === 0) {
+    return `Gathering expert opinions... (${formatDuration(elapsed)})`;
+  }
+
+  if (!message.maxModeRounds || message.maxModeRounds.length < 2) {
+    return `Experts refining answers... (${formatDuration(elapsed)})`;
+  }
+
+  if (!message.maxModeVotes || message.maxModeVotes.length === 0) {
+    return `Experts voting on best answer... (${formatDuration(elapsed)})`;
+  }
+
+  return `Finalizing response... (${formatDuration(elapsed)})`;
 }
 
 const isAtBottom = ref(true);
@@ -258,6 +287,21 @@ watch(
         clearInterval(timerIntervals[msg.id]);
         delete timerIntervals[msg.id];
       }
+      if (msg.role === 'assistant' && msg.maxModeThinking === false && maxModeTimerIntervals[msg.id]) {
+        clearInterval(maxModeTimerIntervals[msg.id]);
+        delete maxModeTimerIntervals[msg.id];
+        delete maxModeThinkingTimers[msg.id];
+      }
+      if (msg.role === 'assistant' && msg.maxModeThinking === true && msg.maxModeThinkingStart != null) {
+        const start = typeof msg.maxModeThinkingStart === 'number' ? msg.maxModeThinkingStart : (msg.maxModeThinkingStart?.getTime?.() ?? Date.now());
+        if (!maxModeTimerIntervals[msg.id]) {
+          maxModeThinkingTimers[msg.id] = 'Gathering expert opinions... (0s)';
+          maxModeTimerIntervals[msg.id] = setInterval(() => {
+            const detailedMessage = getDetailedStatusMessage(msg);
+            maxModeThinkingTimers[msg.id] = detailedMessage || `Thinking for ${formatDuration(Date.now() - start)}...`;
+          }, 100);
+        }
+      }
 
       // Handle loading states for assistant messages
       if (msg.role === 'assistant') {
@@ -279,16 +323,16 @@ watch(
         if (msg.complete) {
           if (msg.reasoningDuration) {
             liveReasoningTimers[msg.id] =
-              `Thought for ${formatDuration(msg.reasoningDuration)}`;
+              `Analyzed for ${formatDuration(msg.reasoningDuration)}`;
           }
           else if (msg.reasoningStartTime && msg.reasoningEndTime) {
             const duration =
               msg.reasoningEndTime.getTime() - msg.reasoningStartTime.getTime();
             liveReasoningTimers[msg.id] =
-              `Thought for ${formatDuration(duration)}`;
+              `Analyzed for ${formatDuration(duration)}`;
           }
           else if (msg.reasoningStartTime) {
-            liveReasoningTimers[msg.id] = "Thought for a moment";
+            liveReasoningTimers[msg.id] = "Analyzed briefly";
           }
           return;
         }
@@ -298,7 +342,7 @@ watch(
           timerIntervals[msg.id] = setInterval(() => {
             const elapsed = new Date().getTime() - startTime.getTime();
             liveReasoningTimers[msg.id] =
-              `Thinking for ${formatDuration(elapsed)}...`;
+              `Analyzing... (${formatDuration(elapsed)})`;
           }, 100);
         }
       }
@@ -310,6 +354,13 @@ watch(
         clearInterval(timerIntervals[timerId]);
         delete timerIntervals[timerId];
         delete liveReasoningTimers[timerId];
+      }
+    });
+    Object.keys(maxModeTimerIntervals).forEach((timerId) => {
+      if (!currentMessageIds.includes(timerId)) {
+        clearInterval(maxModeTimerIntervals[timerId]);
+        delete maxModeTimerIntervals[timerId];
+        delete maxModeThinkingTimers[timerId];
       }
     });
 
@@ -356,12 +407,13 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  // Clean up scroll listener from cached container or document fallback
   const scrollTarget = cachedScrollContainer || document;
   scrollTarget.removeEventListener('scroll', handleScroll);
 
-  // Clean up all timers
   Object.values(timerIntervals).forEach(timer => {
+    clearInterval(timer);
+  });
+  Object.values(maxModeTimerIntervals).forEach(timer => {
     clearInterval(timer);
   });
 });
@@ -577,8 +629,10 @@ defineExpose({ scrollToEnd, isAtBottom, chatWrapper });
         <template v-for="message in messages" :key="message.id">
           <div class="message" :class="message.role" :data-message-id="message.id">
             <div class="message-content">
-                  <!-- New Parts-Based Rendering -->
-                  <div v-if="message.parts && message.parts.length > 0" class="message-parts-container">
+                  <div v-if="message.role === 'assistant' && message.maxModeThinking" class="max-mode-thinking">
+                    {{ maxModeThinkingTimers[message.id] || 'Gathering expert opinions... (0s)' }}
+                  </div>
+                  <div v-else-if="message.parts && message.parts.length > 0" class="message-parts-container">
                     <template v-for="(group, groupIndex) in getPartGroups(message.parts)" :key="`group-${groupIndex}`">
                       <div
                         v-if="group.type === 'mixed'"
@@ -648,6 +702,27 @@ defineExpose({ scrollToEnd, isAtBottom, chatWrapper });
                         </div>
                       </div>
                     </template>
+                  </div>
+                  <div v-if="message.role === 'assistant' && message.maxModeExpertResponses?.length" class="max-mode-experts-area">
+                    <details class="max-mode-experts-details">
+                      <summary>Thinking (experts)</summary>
+                      <template v-for="(rnd, rndIdx) in (message.maxModeRounds || [{ answers: message.maxModeExpertResponses }])" :key="rndIdx">
+                        <div class="max-mode-round-label">Round {{ rnd.round || rndIdx + 1 }}</div>
+                        <div v-for="(exp, idx) in rnd.answers" :key="`${rndIdx}-${idx}`" class="max-mode-expert-block">
+                          <div class="max-mode-expert-label">{{ exp.modelName }}</div>
+                          <div class="max-mode-expert-content" v-html="renderMessageContent(exp.content)"></div>
+                        </div>
+                      </template>
+                      <div v-if="message.maxModeVotes?.length" class="max-mode-votes">
+                        <div class="max-mode-round-label">Votes</div>
+                        <div v-for="(v, i) in message.maxModeVotes" :key="i" class="max-mode-vote-line">
+                          {{ v.modelName }} → {{ ['A','B','C','D'][v.vote] ?? (v.raw || '?') }}
+                        </div>
+                        <div v-if="message.maxModeWinnerIndex != null" class="max-mode-winner">
+                          Winner: {{ ['A','B','C','D'][message.maxModeWinnerIndex] }}
+                        </div>
+                      </div>
+                    </details>
                   </div>
 
                   <!-- User messages without parts (not applicable for assistant due to auto-migration) -->
@@ -1282,6 +1357,85 @@ defineExpose({ scrollToEnd, isAtBottom, chatWrapper });
 /* Remove border from the last item in the group */
 .part-group-container > :last-child {
   border-bottom: none;
+}
+
+.max-mode-thinking {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  padding: 12px 0;
+  min-height: 24px;
+}
+
+.max-mode-experts-area {
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.max-mode-experts-details {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.max-mode-experts-details summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.max-mode-expert-block {
+  margin-top: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.max-mode-expert-block:last-child {
+  border-bottom: none;
+}
+
+.max-mode-expert-label {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.max-mode-expert-content {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.max-mode-expert-content :deep(p) {
+  margin: 0.25em 0;
+}
+
+.max-mode-round-label {
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-top: 12px;
+  margin-bottom: 4px;
+}
+
+.max-mode-round-label:first-child {
+  margin-top: 0;
+}
+
+.max-mode-votes {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.max-mode-vote-line {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin: 2px 0;
+}
+
+.max-mode-winner {
+  font-weight: 600;
+  color: var(--primary);
+  margin-top: 6px;
 }
 
 .part-content {

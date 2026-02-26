@@ -9,6 +9,7 @@ import {
   DropdownMenuItem,
 } from "reka-ui";
 import { useConversationsList } from "~/composables/useConversationsList";
+import { useRateLimiter } from "~/composables/rateLimiter";
 
 const emit = defineEmits([
   "reloadSettings",
@@ -37,6 +38,8 @@ const {
   handleRenameKeydown,
   clearSearch,
 } = useConversationsList();
+
+const { usageStats } = useRateLimiter();
 
 const windowWidth = ref(
   typeof window !== "undefined" ? window.innerWidth : 1200,
@@ -208,6 +211,22 @@ function handleNewConversation() {
           </template>
         </div>
       </div>
+      <div class="sidebar-footer">
+        <div class="usage-row">
+          <span class="usage-label">Messages</span>
+          <div class="usage-bar-track">
+            <div class="usage-bar-fill" :style="{ width: `${Math.min(100, (usageStats.general.used / usageStats.general.limit) * 100)}%` }" />
+          </div>
+          <span class="usage-count">{{ usageStats.general.used }} / {{ usageStats.general.limit }}</span>
+        </div>
+        <div class="usage-row">
+          <span class="usage-label">Images</span>
+          <div class="usage-bar-track">
+            <div class="usage-bar-fill" :style="{ width: `${Math.min(100, (usageStats.image.used / usageStats.image.limit) * 100)}%` }" />
+          </div>
+          <span class="usage-count">{{ usageStats.image.used }} / {{ usageStats.image.limit }}</span>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -344,6 +363,52 @@ function handleNewConversation() {
   overflow-y: auto;
   padding: 0 16px;
   margin-bottom: 12px;
+}
+
+.sidebar-footer {
+  flex-shrink: 0;
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--bg-sidebar);
+}
+
+.usage-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.usage-label {
+  font-size: 0.8em;
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 56px;
+}
+
+.usage-bar-track {
+  flex: 1;
+  height: 8px;
+  background: var(--bg-input);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.usage-bar-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 4px;
+  transition: width 0.2s ease;
+}
+
+.usage-count {
+  font-size: 0.8em;
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 2.4em;
+  text-align: right;
 }
 
 /* Empty State */
