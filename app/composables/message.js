@@ -13,6 +13,7 @@ import {
 import { generateSystemPrompt } from "~/composables/systemPrompt";
 import { findRelevantMemories } from "~/composables/memory";
 import { toolManager } from "~/composables/toolsManager";
+import { getSessionToken } from "~/composables/useSession";
 
 /**
  * Formats a message object for the API, handling multimodal content including:
@@ -20,7 +21,7 @@ import { toolManager } from "~/composables/toolsManager";
  * - Assistant generated images
  * - Reasoning/thinking content
  * - Tool calls and results
- * 
+ *
  * @param {Object} msg - The message object from the messages array
  * @returns {Object} Formatted message for the API
  */
@@ -41,15 +42,15 @@ function formatMessageForAPI(msg) {
         if (attachment.type === "image") {
           contentParts.push({
             type: "image_url",
-            image_url: { url: attachment.dataUrl }
+            image_url: { url: attachment.dataUrl },
           });
         } else if (attachment.type === "pdf") {
           contentParts.push({
             type: "file",
             file: {
               filename: attachment.filename,
-              file_data: attachment.dataUrl
-            }
+              file_data: attachment.dataUrl,
+            },
           });
         }
       }
@@ -73,7 +74,7 @@ function formatMessageForAPI(msg) {
             if (part.content && part.content.trim()) {
               contentParts.push({
                 type: "text",
-                text: `<thinking>\n${part.content}\n</thinking>`
+                text: `<thinking>\n${part.content}\n</thinking>`,
               });
             }
             break;
@@ -82,7 +83,7 @@ function formatMessageForAPI(msg) {
             if (part.content && part.content.trim()) {
               contentParts.push({
                 type: "text",
-                text: part.content
+                text: part.content,
               });
             }
             break;
@@ -93,7 +94,7 @@ function formatMessageForAPI(msg) {
                 if (img.url) {
                   contentParts.push({
                     type: "image_url",
-                    image_url: { url: img.url }
+                    image_url: { url: img.url },
                   });
                 }
               }
@@ -103,11 +104,11 @@ function formatMessageForAPI(msg) {
       }
 
       if (contentParts.length > 0) {
-        const hasNonText = contentParts.some(p => p.type !== "text");
+        const hasNonText = contentParts.some((p) => p.type !== "text");
         if (hasNonText) {
           baseMessage.content = contentParts;
         } else {
-          baseMessage.content = contentParts.map(p => p.text).join("\n\n");
+          baseMessage.content = contentParts.map((p) => p.text).join("\n\n");
         }
       } else {
         baseMessage.content = msg.content || "";
@@ -126,12 +127,14 @@ function formatMessageForAPI(msg) {
     }
 
     // Allow message even if content is empty but it has tool calls
-    const hasContent = (baseMessage.content && (
-      (Array.isArray(baseMessage.content) && baseMessage.content.length > 0) ||
-      (typeof baseMessage.content === 'string' && baseMessage.content.trim().length > 0)
-    ));
+    const hasContent =
+      baseMessage.content &&
+      ((Array.isArray(baseMessage.content) && baseMessage.content.length > 0) ||
+        (typeof baseMessage.content === "string" &&
+          baseMessage.content.trim().length > 0));
 
-    const hasToolCalls = baseMessage.tool_calls && baseMessage.tool_calls.length > 0;
+    const hasToolCalls =
+      baseMessage.tool_calls && baseMessage.tool_calls.length > 0;
 
     if (!hasContent && !hasToolCalls) {
       return null;
@@ -146,7 +149,7 @@ function formatMessageForAPI(msg) {
       role: "tool",
       tool_call_id: msg.tool_call_id,
       name: msg.name,
-      content: msg.content || ""
+      content: msg.content || "",
     };
   }
 
@@ -191,7 +194,7 @@ export async function* handleIncomingMessage(
   toolNames = [],
   isSearchEnabled = false,
   isIncognito = false,
-  attachments = []
+  attachments = [],
 ) {
   try {
     // Validate required parameters
@@ -205,12 +208,23 @@ export async function* handleIncomingMessage(
       const health = await healthResponse.json();
 
       // Check for various unavailability conditions
-      if (health.status === "down" || health.dailyKeyUsageRemaining <= 0 || health.balanceRemaining <= 0) {
+      if (
+        health.status === "down" ||
+        health.dailyKeyUsageRemaining <= 0 ||
+        health.balanceRemaining <= 0
+      ) {
         let message = "⚠️ **Service Unavailable**\n\n";
 
-        if (health.dailyKeyUsageRemaining !== undefined && health.dailyKeyUsageRemaining <= 0) {
-          message += "Daily API budget exhausted. Try again tomorrow or add your own API key in Settings → General.";
-        } else if (health.balanceRemaining !== undefined && health.balanceRemaining <= 0) {
+        if (
+          health.dailyKeyUsageRemaining !== undefined &&
+          health.dailyKeyUsageRemaining <= 0
+        ) {
+          message +=
+            "Daily API budget exhausted. Try again tomorrow or add your own API key in Settings → General.";
+        } else if (
+          health.balanceRemaining !== undefined &&
+          health.balanceRemaining <= 0
+        ) {
           message += "API balance depleted. Service temporarily unavailable.";
         } else {
           message += "Service temporarily unavailable. Please try again later.";
@@ -236,7 +250,7 @@ export async function* handleIncomingMessage(
       memoryFacts = await findRelevantMemories(
         query,
         settings.memory_similarity_threshold || 0.65,
-        plainMessages
+        plainMessages,
       );
     }
 
@@ -250,7 +264,7 @@ export async function* handleIncomingMessage(
         "listMemory",
         "addMemory",
         "modifyMemory",
-        "deleteMemory"
+        "deleteMemory",
       );
     }
 
@@ -266,7 +280,7 @@ export async function* handleIncomingMessage(
       isIncognito ? {} : settings,
       memoryFacts,
       isIncognito, // Pass incognito mode state
-      modelHasToolUse // Pass tool use capability
+      modelHasToolUse, // Pass tool use capability
     );
 
     // Build user message content based on attachments
@@ -307,7 +321,7 @@ export async function* handleIncomingMessage(
     // History messages are formatted with full multimodal support (images, reasoning, tool calls)
     const baseMessages = [
       { role: "system", content: systemPrompt },
-      ...plainMessages.map(formatMessageForAPI).filter(m => m !== null),
+      ...plainMessages.map(formatMessageForAPI).filter((m) => m !== null),
       { role: "user", content: userMessageContent },
     ];
 
@@ -349,32 +363,42 @@ export async function* handleIncomingMessage(
           seed: modelParameters.seed,
         }),
         // Pass custom API key if set
-        ...(settings.custom_api_key && { customApiKey: settings.custom_api_key }),
+        ...(settings.custom_api_key && {
+          customApiKey: settings.custom_api_key,
+        }),
       };
 
       // Add reasoning parameters using the new buildReasoningParams helper
       if (selectedModelInfo) {
         const userSettings = {
-          reasoning_effort: modelParameters?.reasoning?.effort
+          reasoning_effort: modelParameters?.reasoning?.effort,
         };
-        
-        const { reasoningParams, alternateModel } = buildReasoningParams(selectedModelInfo, userSettings);
-        
+
+        const { reasoningParams, alternateModel } = buildReasoningParams(
+          selectedModelInfo,
+          userSettings,
+        );
+
         // If there's an alternate model, use it
         if (alternateModel) {
           requestBody.model = alternateModel;
         }
-        
+
         // Add reasoning parameters if any
         if (reasoningParams) {
           requestBody.reasoning = reasoningParams;
         }
       }
 
+      const sessionToken = await getSessionToken();
+
       // Perform ONE streaming completion and inspect for tool_calls
       const response = await fetch("/api/ai", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-session-token": sessionToken,
+        },
         body: JSON.stringify(requestBody),
         signal: controller.signal,
       });
@@ -384,7 +408,7 @@ export async function* handleIncomingMessage(
         const errorMessage = errorData.error?.message || "Unknown error";
 
         throw new Error(
-          `API request failed with status ${response.status}: ${errorMessage}`
+          `API request failed with status ${response.status}: ${errorMessage}`,
         );
       }
 
@@ -558,8 +582,7 @@ export async function* handleIncomingMessage(
               }
 
               // First check delta (for streaming image chunks)
-              const images =
-                choice.delta?.images;
+              const images = choice.delta?.images;
 
               if (images && images.length > 0) {
                 yield {
@@ -604,7 +627,7 @@ export async function* handleIncomingMessage(
       // Execute tools locally and append tool messages
       const toolResultMessages = await executeToolCallsLocally(
         completedToolCalls,
-        plainMessages
+        plainMessages,
       );
 
       // Yield tool results so the UI can update the widgets
@@ -631,7 +654,7 @@ export async function* handleIncomingMessage(
             },
           })),
         },
-        ...toolResultMessages
+        ...toolResultMessages,
       );
 
       // Loop again: next iteration will call the model with updated messages
@@ -681,7 +704,9 @@ async function executeToolCallsLocally(
         role: "tool",
         tool_call_id: toolCall.id,
         name,
-        content: JSON.stringify({ error: `Invalid JSON in tool arguments: ${err.message}` }),
+        content: JSON.stringify({
+          error: `Invalid JSON in tool arguments: ${err.message}`,
+        }),
       });
       continue;
     }
