@@ -460,7 +460,7 @@ export const availableModels = [
       {
         id: "z-ai/glm-4.7-flash",
         name: "GLM 4.7 Flash",
-        description: "SOTA 30B-class model with excelent agentic capabilities",
+        description: "SOTA 30B-class model with excellent agentic capabilities",
         reasoning: {
           supported: true,
           toggleable: true,
