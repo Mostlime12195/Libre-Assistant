@@ -122,6 +122,22 @@ onMounted(async () => {
 
   // Set the chat panel reference (used by useConversation for scrollToEnd, etc.)
   setChatPanel(chatPanelRef.value);
+
+  // Handle initial prompt from URL query parameter (e.g. /?q=Hello)
+  const initialPrompt = route.query.q;
+  let initialModel = route.query.model;
+  if (initialPrompt && typeof initialPrompt === 'string' && initialPrompt.trim()) {
+    await nextTick();
+
+    if (initialModel) {
+      initialModel = initialModel.replace('-', '/');
+      if (availableModels.value.find(m => m.name === initialModel)) {
+        settingsManager.setSelectedModel(initialModel);
+      }
+    }
+
+    await sendMessage(initialPrompt.trim());
+  }
 });
 
 // Use selectedModelName from settingsManager
