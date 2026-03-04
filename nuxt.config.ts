@@ -77,9 +77,11 @@ export default defineNuxtConfig({
     // Private config that only the server can access
     hackclubApiKey: '',
     hackclubSearchApiKey: '',
+    turnstileSecretKey: '',
+    sessionSecret: '',
     // Public config that is exposed to the client
     public: {
-      // Add any public config here
+      turnstileSiteKey: '',
     }
   }
 })

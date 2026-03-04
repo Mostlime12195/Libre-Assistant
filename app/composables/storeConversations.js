@@ -1,6 +1,7 @@
 import localforage from "localforage";
 import { emitter } from "~/composables/emitter";
 import { migrateMessages } from "./branchManager";
+import { getSessionToken } from "~/composables/useSession";
 
 /**
  * Serializes a message object for storage, removing Vue reactivity proxies
@@ -74,9 +75,13 @@ async function generateTitleInBackground(conversationId, plainMessages, lastUpda
   const systemPrompt = `You are an AI with the task of shortening and summarising messages into a short title. You must summarise the given messages based on their content into at most a 40 character title. Each conversation is between a user and an AI chatbot. The messages provided to you are the first messages of the conversation. The title must be general enough to apply to what you think the conversation will be about. Only output the title, without any additional explainations or commentary.`;
 
   try {
+    const sessionToken = await getSessionToken();
     const response = await fetch("/api/ai", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-session-token": sessionToken,
+      },
       body: JSON.stringify({
         messages: [
           { role: "system", content: systemPrompt },
