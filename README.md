@@ -36,6 +36,21 @@ git clone https://github.com/Mostlime12195/Libre-Assistant.git
 cd libre-assistant
 ```
 
+### Set Environment Variables
+
+```env
+NUXT_PUBLIC_TURNSTILE_SITE_KEY
+NUXT_TURNSTILE_SECRET_KEY
+NUXT_SESSION_SECRET
+NUXT_HACKCLUB_API_KEY
+NUXT_HACKCLUB_SEARCH_API_KEY
+```
+`NUXT_PUBLIC_TURNSTILE_SITE_KEY`, `NUXT_TURNSTILE_SECRET_KEY`, and `NUXT_SESSION_SECRET` are required for Cloudflare's turnstile to work, but are optional.
+
+`NUXT_HACKCLUB_API_KEY` is the default API key that will be used for all inference from [ai.hackclub.com](https://ai.hackclub.com).
+
+`NUXT_HACKCLUB_SEARCH_API_KEY ` is the API key that will be used for all search tools from [search.hacklub.com](https://search.hackclub.com).
+
 ### Install Dependencies
 
 ```sh

@@ -44,7 +44,7 @@ import { useDark } from "@vueuse/core";
 import { useRoute, useRouter } from '#app';
 import { useHead } from '@unhead/vue';
 
-import { availableModels } from '~/composables/availableModels';
+import { availableModels, findModelById } from '~/composables/availableModels';
 import { useSettings } from '~/composables/useSettings';
 import { useConversation } from '~/composables/useConversation';
 import { useGlobalScrollStatus } from '~/composables/useGlobalScrollStatus';
@@ -122,6 +122,35 @@ onMounted(async () => {
 
   // Set the chat panel reference (used by useConversation for scrollToEnd, etc.)
   setChatPanel(chatPanelRef.value);
+
+  // Handle initial prompt from URL query parameter (e.g. /?q=Hello)
+  const initialPrompt = route.query.q;
+  const initialModel = route.query.model;
+  if (initialPrompt && typeof initialPrompt === 'string' && initialPrompt.trim()) {
+    await nextTick();
+
+    if (typeof initialModel === 'string' && initialModel.trim()) {
+      const normalizedModel = decodeURIComponent(initialModel).trim();
+      const modelCandidates = [
+        normalizedModel,
+        normalizedModel.includes('/') ? null : normalizedModel.replace('-', '/'),
+      ].filter(Boolean);
+
+      const matchedModel = modelCandidates
+        .map(candidate => findModelById(availableModels, candidate))
+        .find(Boolean);
+
+      const matchedByName = availableModels
+        .flatMap(category => category.models || [])
+        .find(model => model.name.toLowerCase() === normalizedModel.toLowerCase());
+
+      if (matchedModel || matchedByName) {
+        settingsManager.settings.selected_model_id = (matchedModel || matchedByName).id;
+      }
+    }
+
+    await sendMessage(initialPrompt.trim());
+  }
 });
 
 // Use selectedModelName from settingsManager

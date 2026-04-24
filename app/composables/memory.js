@@ -1,4 +1,5 @@
 import localforage from "localforage";
+import { getSessionToken } from "~/composables/useSession";
 
 // Define the key used for storing memory in localforage
 const MEMORY_STORAGE_KEY = "global_chatbot_memory";
@@ -29,9 +30,13 @@ async function generateEmbedding(text, messageHistory = []) {
     // Format text with Qwen's instruction format
     const formattedInput = `Instruct: ${EMBEDDING_TASK}\nQuery: ${contextText}${text}`;
 
+    const sessionToken = await getSessionToken();
     const response = await fetch('/api/embeddings', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-session-token': sessionToken,
+      },
       body: JSON.stringify({ input: formattedInput })
     });
 
