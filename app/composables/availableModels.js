@@ -272,6 +272,16 @@ export const availableModels = [
         vision: true,
       },
       {
+        id: "google/gemini-3.1-flash-image-preview",
+        name: "Nano Banana 2 (Image)",
+        description: "Frontier fast image generation model.",
+        tool_use: false,
+        reasoning: {
+          supported: true
+        },
+        vision: true,
+      },
+      {
         id: "google/gemini-2.5-flash-image",
         name: "Nano Banana (Image)",
         description: "Fast image generation model.",
@@ -288,9 +298,20 @@ export const availableModels = [
     logo: "/ai_logos/moonshot.svg",
     models: [
       {
+        id: "moonshotai/kimi-k2.6",
+        name: "Kimi K2.6",
+        description: "SOTA open-weights model with exceptional EQ, coding, and agentic abilities.",
+        vision: true,
+        reasoning: {
+          supported: true,
+          toggleable: true,
+          defaultEnabled: true
+        },
+      },
+      {
         id: "moonshotai/kimi-k2.5",
         name: "Kimi K2.5",
-        description: "SOTA open-weights model with exceptional EQ, coding, and agentic abilities.",
+        description: "Open-weights model with exceptional EQ, coding, and agentic abilities.",
         vision: true,
         reasoning: {
           supported: true,
@@ -437,6 +458,16 @@ export const availableModels = [
     category: "Z.ai",
     logo: "/ai_logos/zai.svg",
     models: [
+      {
+        id: "z-ai/glm-5.1",
+        name: "GLM 5.1",
+        description: "Frontier open-weight model excelling at coding and math",
+        reasoning: {
+          supported: true,
+          toggleable: true,
+          defaultEnabled: true
+        },
+      },
       {
         id: "z-ai/glm-5",
         name: "GLM 5",

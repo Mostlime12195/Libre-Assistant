@@ -13,6 +13,15 @@ All notable changes to Libre Assistant are documented here.
 
 ---
 
+## [0.9.2]
+
+### Added
+- Kimi K2.6 model
+- GLM 5.1 model
+- Nano Banana 2 image generation model
+
+---
+
 ## [0.9.1] - 2026-02-19
 
 ### Added
