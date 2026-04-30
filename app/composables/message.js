@@ -374,14 +374,6 @@ export async function* handleIncomingMessage(
     const modelHasToolUse = selectedModelInfo?.tool_use !== false;
 
     const enabledToolNames = [];
-    if (modelHasToolUse && settings.notebook_memory_enabled && !isIncognito) {
-      enabledToolNames.push(
-        "listMemory",
-        "addMemory",
-        "modifyMemory",
-        "deleteMemory",
-      );
-    }
 
     // Enable Exa search tools if search is enabled
     if (modelHasToolUse && isSearchEnabled) {

@@ -4,7 +4,6 @@
  */
 
 // Import necessary functions
-import { addMemory, modifyMemory, deleteMemory, listMemory } from './memory';
 import { useSettings } from './useSettings';
 
 class ToolManager {
@@ -98,125 +97,6 @@ class ToolManager {
    * Register default tools
    */
   registerDefaultTools() {
-    // Memory tools
-    this.registerTool(
-      'listMemory',
-      async () => {
-        return await listMemory();
-      },
-      {
-        type: "function",
-        function: {
-          name: "listMemory",
-          description: "Retrieve all stored memory facts",
-          parameters: {
-            type: "object",
-            properties: {},
-          }
-        }
-      }
-    );
-
-    this.registerTool(
-      'addMemory',
-      async (args, messageHistory = []) => {
-        if (!args.fact) {
-          throw new Error('addMemory tool requires a "fact" argument');
-        }
-        await addMemory(args.fact, args.isGlobal || false, messageHistory);
-        const memoryType = args.isGlobal ? 'global' : 'local';
-        return { success: true, message: `Added ${memoryType} fact: "${args.fact}"` };
-      },
-      {
-        type: "function",
-        function: {
-          name: "addMemory",
-          description: "Add a new fact to memory. Use isGlobal=true for style preferences and basic info that applies to all conversations. Use isGlobal=false (default) for specific contextual facts.",
-          parameters: {
-            type: "object",
-            properties: {
-              fact: {
-                type: "string",
-                description: "The fact to add to memory"
-              },
-              isGlobal: {
-                type: "boolean",
-                description: "Whether this is a global memory (always included) or local memory (filtered by relevance). Defaults to false."
-              }
-            },
-            required: ["fact"]
-          }
-        }
-      }
-    );
-
-    this.registerTool(
-      'modifyMemory',
-      async (args, messageHistory = []) => {
-        if (!args.oldFact || !args.newFact) {
-          throw new Error('modifyMemory tool requires "oldFact" and "newFact" arguments');
-        }
-        await modifyMemory(args.oldFact, args.newFact, args.isGlobal, messageHistory);
-        return {
-          success: true,
-          message: `Modified fact: "${args.oldFact}" -> "${args.newFact}"`
-        };
-      },
-      {
-        type: "function",
-        function: {
-          name: "modifyMemory",
-          description: "Update an existing fact in memory. Optionally change whether it's a global or local memory.",
-          parameters: {
-            type: "object",
-            properties: {
-              oldFact: {
-                type: "string",
-                description: "The existing fact to modify"
-              },
-              newFact: {
-                type: "string",
-                description: "The new fact to replace it with"
-              },
-              isGlobal: {
-                type: "boolean",
-                description: "Whether this should be a global memory (always included) or local memory (filtered by relevance). If not specified, preserves the current setting."
-              }
-            },
-            required: ["oldFact", "newFact"]
-          }
-        }
-      }
-    );
-
-    this.registerTool(
-      'deleteMemory',
-      async (args) => {
-        if (!args.fact) {
-          throw new Error('deleteMemory tool requires a "fact" argument');
-        }
-        await deleteMemory(args.fact);
-        return { success: true, message: `Deleted fact: "${args.fact}"` };
-      },
-      {
-        type: "function",
-        function: {
-          name: "deleteMemory",
-          description: "Remove a specific fact from memory",
-          parameters: {
-            type: "object",
-            properties: {
-              fact: {
-                type: "string",
-                description: "The fact to delete from memory"
-              }
-            },
-            required: ["fact"]
-          }
-        }
-      }
-    );
-
     // Exa Search Tool - calls server route with API key
     this.registerTool(
       'search',

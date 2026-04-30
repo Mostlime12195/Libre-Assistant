@@ -4,7 +4,6 @@ import localforage from 'localforage';
 import { createConversation as createNewConversation, storeMessages, deleteConversation as deleteConv, updateBranchPath, loadConversation } from './storeConversations';
 import { handleIncomingMessage } from './message';
 import { availableModels, findModelById, normalizeReasoningConfig, getDefaultReasoningEffort } from './availableModels';
-import { addMemory, modifyMemory, deleteMemory } from './memory';
 import DEFAULT_PARAMETERS from './defaultParameters';
 import { useSettings } from './useSettings';
 import { useGlobalIncognito } from './useGlobalIncognito';
@@ -421,11 +420,6 @@ export function useMessagesManager(chatPanel) {
       Object.assign(assistantMsg, finalUpdates);
       updateAssistantMessage(assistantMsg, finalUpdates);
 
-      // Process memory commands
-      if (assistantMsg.content) {
-        await processMemoryCommands(assistantMsg.content);
-      }
-
       // Handle error display
       if (assistantMsg.error && assistantMsg.errorDetails) {
         const errorSuffix = `\n\n---\n⚠️ **Error:** ${assistantMsg.errorDetails.message}` +
@@ -472,39 +466,6 @@ export function useMessagesManager(chatPanel) {
     const index = messages.value.findIndex(m => m.id === message.id);
     if (index !== -1) {
       messages.value.splice(index, 1, { ...messages.value[index], parts: newParts, tool_calls: newTools });
-    }
-  }
-
-  /**
-   * Process memory commands from message content
-   */
-  async function processMemoryCommands(content) {
-    const memoryCommandPattern = /\{[^}]*"memory_action"[^}]*\}/g;
-    const matches = content.match(memoryCommandPattern);
-
-    if (matches) {
-      for (const match of matches) {
-        try {
-          const command = JSON.parse(match);
-          if (command.memory_action) {
-            switch (command.memory_action) {
-              case 'add':
-                if (command.fact) await addMemory(command.fact);
-                break;
-              case 'modify':
-                if (command.old_fact && command.new_fact) {
-                  await modifyMemory(command.old_fact, command.new_fact);
-                }
-                break;
-              case 'delete':
-                if (command.fact) await deleteMemory(command.fact);
-                break;
-            }
-          }
-        } catch (error) {
-          console.error(`Error parsing memory command:`, error);
-        }
-      }
     }
   }
 
