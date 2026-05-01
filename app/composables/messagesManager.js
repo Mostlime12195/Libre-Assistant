@@ -265,8 +265,10 @@ export function useMessagesManager(chatPanel) {
 
     try {
       // Build conversation history for the API
+      // Tool results are now stored in assistant message parts, not as separate messages
       const historyForAPI = visibleMessages.value.filter(msg => {
         if (!msg.complete) return false;
+        if (msg.role === 'tool') return false; // Skip tool messages - they're in assistant parts
         if (msg.role === 'user') {
           const lastUserMsg = [...visibleMessages.value].reverse().find(m => m.role === 'user');
           if (lastUserMsg && msg.id === lastUserMsg.id) return false;
@@ -361,6 +363,9 @@ export function useMessagesManager(chatPanel) {
             toolCall.result = chunk.tool_result.result;
           }
         }
+
+        // Tool results are now stored in the assistant message's parts via partsBuilder
+        // No separate tool messages needed - this keeps branching simple (1 message per turn)
 
         // Process usage
         if (chunk.usage) {

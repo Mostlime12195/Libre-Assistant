@@ -27,18 +27,16 @@ import { getSessionToken } from "~/composables/useSession";
  * - Tool calls and results
  *
  * @param {Object} msg - The message object from the messages array
- * @returns {Object} Formatted message for the API
+ * @returns {Object|Array} Formatted message(s) for the API. Returns array for assistant messages with tools.
  */
 function formatMessageForAPI(msg) {
-  const baseMessage = { role: msg.role };
-
-  // Handle annotations for PDF reuse
-  if (msg.annotations) {
-    baseMessage.annotations = msg.annotations;
-  }
-
   // User messages: handle attachments
   if (msg.role === "user") {
+    const baseMessage = { 
+      role: msg.role,
+      annotations: msg.annotations 
+    };
+    
     if (msg.attachments && msg.attachments.length > 0) {
       const contentParts = [{ type: "text", text: msg.content || "" }];
 
@@ -66,100 +64,159 @@ function formatMessageForAPI(msg) {
     return baseMessage;
   }
 
-  // Assistant messages: handle parts (reasoning, content, images, tool_calls)
+  // Assistant messages: Convert parts to interleaved assistant/tool messages
   if (msg.role === "assistant") {
-    // If message has structured parts, build multimodal content
-    if (msg.parts && msg.parts.length > 0) {
-      const contentParts = [];
-
-      for (const part of msg.parts) {
-        switch (part.type) {
-          case "reasoning":
-            if (part.content && part.content.trim()) {
-              contentParts.push({
-                type: "text",
-                text: `<thinking>\n${part.content}\n</thinking>`,
-              });
-            }
-            break;
-
-          case "content":
-            if (part.content && part.content.trim()) {
-              contentParts.push({
-                type: "text",
-                text: part.content,
-              });
-            }
-            break;
-
-          case "image":
-            if (part.images && part.images.length > 0) {
-              for (const img of part.images) {
-                if (img.url) {
-                  contentParts.push({
-                    type: "image_url",
-                    image_url: { url: img.url },
-                  });
-                }
-              }
-            }
-            break;
-        }
-      }
-
-      if (contentParts.length > 0) {
-        const hasNonText = contentParts.some((p) => p.type !== "text");
-        if (hasNonText) {
-          baseMessage.content = contentParts;
-        } else {
-          baseMessage.content = contentParts.map((p) => p.text).join("\n\n");
-        }
-      } else {
-        baseMessage.content = msg.content || "";
-      }
-    } else {
-      let content = msg.content || "";
-      if (msg.reasoning && msg.reasoning.trim()) {
-        content = `<thinking>\n${msg.reasoning}\n</thinking>\n\n${content}`;
-      }
-      baseMessage.content = content;
-    }
-
-    // CRITICAL: Include tool calls in assistant messages for history
-    if (msg.tool_calls && msg.tool_calls.length > 0) {
-      baseMessage.tool_calls = JSON.parse(JSON.stringify(msg.tool_calls));
-    }
-
-    // Allow message even if content is empty but it has tool calls
-    const hasContent =
-      baseMessage.content &&
-      ((Array.isArray(baseMessage.content) && baseMessage.content.length > 0) ||
-        (typeof baseMessage.content === "string" &&
-          baseMessage.content.trim().length > 0));
-
-    const hasToolCalls =
-      baseMessage.tool_calls && baseMessage.tool_calls.length > 0;
-
-    if (!hasContent && !hasToolCalls) {
-      return null;
-    }
-
-    return baseMessage;
+    return formatAssistantMessageForAPI(msg);
   }
 
   // Tool messages (for tool results in conversation)
+  // OpenAI API format: role, tool_call_id, content (no name field)
   if (msg.role === "tool") {
     return {
       role: "tool",
       tool_call_id: msg.tool_call_id,
-      name: msg.name,
       content: msg.content || "",
     };
   }
 
   // Fallback for any other role
-  baseMessage.content = msg.content || "";
-  return baseMessage;
+  return {
+    role: msg.role,
+    content: msg.content || ""
+  };
+}
+
+/**
+ * Formats an assistant message for the API, converting parts to interleaved messages.
+ * For true agentic behavior: content -> tool -> result -> tool -> result -> content
+ * 
+ * @param {Object} msg - The assistant message with parts
+ * @returns {Array} Array of API messages (assistant and tool messages interleaved)
+ */
+function formatAssistantMessageForAPI(msg) {
+  const messages = [];
+  let currentContentParts = [];
+  
+  // Helper to build content from parts
+  const buildContent = (parts) => {
+    const contentParts = [];
+    for (const part of parts) {
+      switch (part.type) {
+        case "reasoning":
+          if (part.content && part.content.trim()) {
+            contentParts.push({
+              type: "text",
+              text: `<thinking>\n${part.content}\n</thinking>`,
+            });
+          }
+          break;
+        case "content":
+          if (part.content && part.content.trim()) {
+            contentParts.push({
+              type: "text",
+              text: part.content,
+            });
+          }
+          break;
+        case "image":
+          if (part.images && part.images.length > 0) {
+            for (const img of part.images) {
+              if (img.url) {
+                contentParts.push({
+                  type: "image_url",
+                  image_url: { url: img.url },
+                });
+              }
+            }
+          }
+          break;
+      }
+    }
+    
+    if (contentParts.length === 0) return null;
+    if (contentParts.length === 1 && contentParts[0].type === "text") {
+      return contentParts[0].text;
+    }
+    return contentParts;
+  };
+  
+  // Helper to flush accumulated content as assistant message
+  const flushContent = () => {
+    if (currentContentParts.length === 0) return;
+    
+    const content = buildContent(currentContentParts);
+    if (content) {
+      messages.push({
+        role: "assistant",
+        content: content
+      });
+    }
+    currentContentParts = [];
+  };
+  
+  // Process parts in order
+  if (msg.parts && msg.parts.length > 0) {
+    for (const part of msg.parts) {
+      if (part.type === "tool_group" && part.tools && part.tools.length > 0) {
+        // Flush any content before the tool group
+        flushContent();
+        
+        // For agentic behavior, interleave each tool with its result
+        for (const tool of part.tools) {
+          if (tool.id && tool.function) {
+            // Assistant message with single tool_call
+            messages.push({
+              role: "assistant",
+              content: "", // Content before this tool (if any was generated)
+              tool_calls: [{
+                id: tool.id,
+                type: tool.type || "function",
+                function: {
+                  name: tool.function.name || "",
+                  arguments: tool.function.arguments || ""
+                }
+              }]
+            });
+            
+            // Tool result message (immediately after)
+            if (tool.result !== undefined && tool.result !== null) {
+              messages.push({
+                role: "tool",
+                tool_call_id: tool.id,
+                content: typeof tool.result === 'string' ? tool.result : JSON.stringify(tool.result)
+              });
+            }
+          }
+        }
+      } else {
+        // Accumulate non-tool parts
+        currentContentParts.push(part);
+      }
+    }
+  } else {
+    // No parts - use legacy formatting
+    let content = msg.content || "";
+    if (msg.reasoning && msg.reasoning.trim()) {
+      content = `<thinking>\n${msg.reasoning}\n</thinking>\n\n${content}`;
+    }
+    if (content.trim()) {
+      currentContentParts.push({ type: "content", content });
+    }
+  }
+  
+  // Flush any remaining content
+  flushContent();
+  
+  // If no messages created but we have tool_calls from msg, add single assistant message
+  if (messages.length === 0 && msg.tool_calls && msg.tool_calls.length > 0) {
+    messages.push({
+      role: "assistant",
+      content: msg.content || "",
+      tool_calls: JSON.parse(JSON.stringify(msg.tool_calls))
+    });
+  }
+  
+  return messages;
 }
 
 /**
@@ -243,8 +300,7 @@ class StreamAccumulator {
 
   /**
    * Get completed tool calls as an array
-   */
-  getCompletedToolCalls() {
+   */  getCompletedToolCalls() {
     const calls = [];
     const indices = Array.from(this.toolCalls.keys()).sort((a, b) => a - b);
     for (const index of indices) {
@@ -414,9 +470,15 @@ export async function* handleIncomingMessage(
     }
 
     // Build base messages for this user turn
+    // formatMessageForAPI can return single message or array (for assistant with tools)
+    const formattedHistory = plainMessages
+      .map(formatMessageForAPI)
+      .flat()
+      .filter((m) => m !== null);
+    
     const baseMessages = [
       { role: "system", content: systemPrompt },
-      ...plainMessages.map(formatMessageForAPI).filter((m) => m !== null),
+      ...formattedHistory,
       { role: "user", content: userMessageContent },
     ];
 
@@ -439,29 +501,14 @@ export async function* handleIncomingMessage(
     while (iteration < maxToolIterations) {
       iteration++;
 
-      // Build messages for this call including any previous tool results
-      const intermediateMessages = [];
-      
-      // Add previous assistant message with tool calls if this is iteration > 1
-      if (iteration > 1 && accumulator.hasToolCalls) {
-        const previousToolCalls = accumulator.getCompletedToolCalls();
-        if (previousToolCalls.length > 0) {
-          intermediateMessages.push({
-            role: "assistant",
-            content: accumulator.content || "",
-            tool_calls: previousToolCalls.map((tc) => ({
-              id: tc.id,
-              type: tc.type,
-              function: {
-                name: tc.function.name,
-                arguments: tc.function.arguments,
-              },
-            })),
-          });
-        }
-      }
-
-      const messagesForThisCall = [...baseMessages, ...intermediateMessages];
+      // Build messages for this call
+      // Note: baseMessages now contains all previous turns including:
+      // - system prompt
+      // - conversation history
+      // - current user message
+      // - previous assistant messages with tool_calls
+      // - previous tool results
+      const messagesForThisCall = baseMessages;
 
       // Build request body
       const requestBody = {
@@ -675,6 +722,21 @@ export async function* handleIncomingMessage(
         break;
       }
 
+      // CRITICAL: First add the assistant message with tool_calls to baseMessages
+      // This must come BEFORE tool results to maintain correct message ordering
+      baseMessages.push({
+        role: "assistant",
+        content: accumulator.content || "",
+        tool_calls: completedToolCalls.map((tc) => ({
+          id: tc.id,
+          type: tc.type,
+          function: {
+            name: tc.function.name,
+            arguments: tc.function.arguments,
+          },
+        })),
+      });
+
       // Execute tools and get results
       const toolResults = await executeTools(completedToolCalls, plainMessages);
 
@@ -691,20 +753,25 @@ export async function* handleIncomingMessage(
         };
       }
 
-      // Add tool results to intermediate messages for next iteration
+      // Add tool results to baseMessages AFTER the assistant message
+      // Correct order: assistant (with tool_calls) → tool results
+      const toolMessages = [];
       for (const result of toolResults) {
-        baseMessages.push({
+        const toolMsg = {
           role: "tool",
           tool_call_id: result.tool_call_id,
           name: result.name,
           content: result.content,
-        });
+        };
+        baseMessages.push(toolMsg);
+        toolMessages.push(toolMsg);
       }
 
-      // Signal iteration complete
+      // Yield tool messages so they can be stored in conversation history
       yield {
         iterationComplete: true,
         toolCallsExecuted: completedToolCalls.length,
+        toolMessages: toolMessages,
       };
     }
 
