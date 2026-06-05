@@ -8,10 +8,29 @@ All notable changes to Libre Assistant are documented here.
 - **Changed** — Modifications to existing features, behavior, or defaults
 - **Fixed** — Bug fixes and corrections to existing functionality
 - **Removed** — Features, content, or capabilities that have been deleted
-- **Deprecated** — Features that still work but are planned for removal in future versions
+- **Deprecated** — Features that still work but are planned for removal in future
 - **Security** — Security-related improvements or vulnerability fixes
 
 ---
+
+## [1.3.0] - 2026-06-05
+
+### Added
+- In-progress prompts are stored, so you can now return to them later
+- Unit testing functionality, with 180 unit tests
+
+### Changed
+- Renamed the 'Notebook' feature to 'Notepad' to prevent misunderstanding, especially with AI agents
+- Improved how settings are instantiated and shared across the application
+- Cached healthcheck
+- Reimplemented code block download & copy buttons
+
+### Fixed
+- Reimplemented Notebook (now Notepad) system entirely to bring a much more reliable experience
+- Fixed model ID used for Notepad consolidation from 'claude-3.5-haiku' to 'claude-4.5-haiku', which should result in significantly better quality notepad entries
+- Fixed the search API response not properly mapping some of the data, forcing the model to crawl webpages alongside search. This update should make search much faster, cheaper, and higher quality.
+- Fixed message copy button
+
 
 ## [1.2.0] - 2026-04-30
 

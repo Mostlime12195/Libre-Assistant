@@ -10,9 +10,9 @@ import {
   findModelById,
 } from "~/composables/availableModels";
 import {
-  loadNotebook,
-  getNotebookForPrompt,
-} from "./notebook";
+  loadNotepad,
+  getNotepadSection,
+} from "./notepad";
 
 // --- PROMPT MODULES ---
 // These are the blocks that will be assembled into the final prompt.
@@ -53,24 +53,24 @@ const KNOWLEDGE_CUTOFF_REGULAR = `### Knowledge Cutoff
 
 const SEARCH_TOOLS_AWARENESS = `### Web Search and Page Crawling
 *   You have access to web search and page crawling tools when the user enables them:
-  - **search**: Search the web for current information, news, or specific topics. Returns a list of search results with titles, URLs, and descriptions.
-  - **getPageContents**: Retrieve the full content of specific web pages. Use this after finding relevant URLs via search to get detailed information, or to read a specific document or page.
+  - **search**: Search the web for current information, news, or specific topics. Each result includes the page title, URL, an array of \`highlights\` (key excerpts), the \`author\` (when known), the published date, and any nested \`subpages\`. Highlights are short, query-relevant snippets — use them as your first read.
+  - **getPageContents**: Retrieve the full content of specific web pages. Use this after finding relevant URLs via search to get detailed information, or to read a specific document or page. Reach for this whenever a search highlight is too short to answer the question.
 *   Use these tools when:
   - The user asks about recent events or information beyond your knowledge cutoff
   - You need to verify facts or find current data
   - The user explicitly asks you to search or look something up
-*   Workflow: First use search to find relevant pages, then use getPageContents on the most promising URLs to get detailed information.
+*   Workflow: First use search to find relevant pages and skim their highlights, then use getPageContents on the most promising URLs to get detailed information.
 *   Additionally, the web crawl tool can be used in interesting ways to provide extra information, such as reading PDFs or specific pages.`;
 
-const MEMORY_AWARENESS_NOTEBOOK = `### Memory Awareness
-*   You maintain a personal Notebook about the user, containing observations about the user's personality, communication style, ongoing projects, and recent & old activity.
-*   The Notebook appears above as "My Notes About You" and contains your ongoing observations about:
+const NOTEPAD_AWARENESS = `### Notepad Awareness
+*   You maintain a private Notepad about the user — a working document that helps you remember them across conversations.
+*   The Notepad appears above as "My Notepad" and contains your ongoing observations about:
   - The user's personality, communication style, and preferences
   - Their ongoing projects, interests, and goals
-  - Recent activity and longer-term background context
-*   The Notebook is automatically maintained in the background, you cannot directly edit it.
-*   If the user asks you to "remember" something or update your notes, acknowledge that your Notebook will be updated automatically based on your conversations.
-*   Use this notebook to provide context behind how to act or the user's motives. HOWEVER, DO NOT mention topics/observations from other conversations unless directly relevant or asked for, this is because unprompted mention of a previous discussion can be uncomfortable or redundant to many. If the user does not mention or ask for information from a previous conversation, it is likely best that you don't mention it.`;
+  - Recurring context and longer-term background
+*   The Notepad is automatically maintained in the background — you cannot directly edit it. The user can view and reset it from their settings.
+*   If the user asks you to "remember" something, acknowledge that your Notepad will be updated automatically based on your conversations.
+*   Use the Notepad to inform your tone and how you respond. DO NOT mention specific topics or observations from other conversations unless the user is clearly continuing that thread or asks about it — unprompted cross-conversation references can feel intrusive. If in doubt, don't bring it up.`;
 
 // Only for GPT-OSS models
 const TABLE_LIMITATION_GUIDELINES = `### Table Usage Guidelines
@@ -104,7 +104,7 @@ export async function generateSystemPrompt(
     user_name,
     occupation,
     custom_instructions,
-    notebook_memory_enabled,
+    notepad_enabled,
     selected_model_id,
     gpt_oss_limit_tables,
   } = settings;
@@ -131,18 +131,18 @@ export async function generateSystemPrompt(
     promptSections.push(userContext);
   }
 
-  // **Notebook Memory Section**
-  // Load and inject the Notebook if memory is enabled
-  const memoryEnabled = notebook_memory_enabled ?? false;
-  if (memoryEnabled && !isIncognito) {
+  // **Notepad Section**
+  // Load and inject the Notepad if memory is enabled.
+  const notepadOn = notepad_enabled === true;
+  if (notepadOn && !isIncognito) {
     try {
-      const notebook = await loadNotebook();
-      const notebookSection = getNotebookForPrompt(notebook);
-      if (notebookSection) {
-        promptSections.push(notebookSection);
+      const notepad = await loadNotepad();
+      const notepadSection = getNotepadSection(notepad);
+      if (notepadSection) {
+        promptSections.push(notepadSection);
       }
     } catch (error) {
-      console.error("Error loading Notebook for system prompt:", error);
+      console.error("Error loading Notepad for system prompt:", error);
     }
   }
 
@@ -173,10 +173,9 @@ export async function generateSystemPrompt(
     promptSections.push(SEARCH_TOOLS_AWARENESS);
   }
 
-  // Add memory awareness if enabled and not in incognito mode
-  if (memoryEnabled && !isIncognito) {
-    // Note: The AI cannot directly modify the Notebook - it's maintained automatically
-    promptSections.push(MEMORY_AWARENESS_NOTEBOOK);
+  // Add notepad awareness if enabled and not in incognito mode
+  if (notepadOn && !isIncognito) {
+    promptSections.push(NOTEPAD_AWARENESS);
   }
 
   // **Tools Section (Conditional)**

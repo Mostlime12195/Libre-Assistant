@@ -24,6 +24,7 @@
         :available-models="availableModels"
         :selected-model-name="selectedModelName"
         :settings-manager="settingsManager"
+        :conversation-id="currConvo"
         @typing="isTyping = true"
         @empty="isTyping = false"
         @send-message="sendMessage"

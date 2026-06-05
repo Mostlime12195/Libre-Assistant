@@ -1,37 +1,24 @@
-import { reactive, readonly } from 'vue';
+import { reactive } from 'vue';
 import Settings from './settings';
 
-// Create a single shared instance of Settings
+// Create a single shared instance of Settings. The constructor of
+// `Settings` already kicks off `loadSettings()` asynchronously, so we
+// do NOT call it again here — doing so previously caused the load to
+// fire twice and risked racing the second result over the first.
 const settingsManagerInstance = reactive(new Settings());
 
-// Make sure settings are loaded initially
-if (typeof window !== 'undefined') {
-  // Load settings when the composable is first used, if not already loaded
-  if (!settingsManagerInstance.isLoaded) {
-    settingsManagerInstance.loadSettings().catch(error => {
-      console.error('Failed to load settings in composable:', error);
-    });
-  }
-}
-
 /**
- * Composable to provide access to the shared settings instance
- * 
+ * Composable to provide access to the shared settings instance.
+ *
  * This ensures that all components in the application use the same
  * settings instance and react to changes consistently, avoiding
  * synchronization issues between different parts of the app.
- * 
+ *
+ * Consumers can check `settingsManagerInstance.isLoaded` to know
+ * whether the persisted settings have finished hydrating.
+ *
  * @returns {Object} The shared reactive settings manager instance
  */
 export function useSettings() {
   return settingsManagerInstance;
-}
-
-/**
- * Provides a readonly version of the settings for components that only need to read
- * 
- * @returns {Object} The readonly shared settings manager instance
- */
-export function useSettingsReadonly() {
-  return readonly(settingsManagerInstance);
 }

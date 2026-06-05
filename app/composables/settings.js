@@ -14,7 +14,7 @@ class Settings {
     // Use a reactive reference for settings to improve reactivity
     const settings = reactive({
       // Version marker for future migrations
-      version: 2,
+      version: 3,
 
       // --- User Profile Settings ---
       user_name: null, // User's name
@@ -22,7 +22,7 @@ class Settings {
       custom_instructions: null, // Custom instructions for Libre
 
       // --- Memory Settings ---
-      notebook_memory_enabled: false, // Whether Notebook/memory is enabled (new unified setting)
+      notepad_enabled: false, // Whether the Notepad memory system is enabled
 
       // --- Model Settings ---
       selected_model_id: DEFAULT_MODEL_ID, // Default model ID
@@ -48,8 +48,8 @@ class Settings {
 
     // Create a non-reactive copy of default settings to avoid circular references
     this.defaultSettings = {
-      version: 2,
-      notebook_memory_enabled: false, // Whether Notebook/memory is enabled (new unified setting)
+      version: 3,
+      notepad_enabled: false, // Whether the Notepad memory system is enabled
       selected_model_id: DEFAULT_MODEL_ID, // Default model ID
       search_enabled: false, // Default value for search setting
       model_settings: {}, // Default value for model settings
@@ -119,6 +119,17 @@ class Settings {
         if (mergedSettings.selected_model_id === "moonshotai/kimi-k2-instruct-0905" || !mergedSettings.selected_model_id) {
           mergedSettings.selected_model_id = DEFAULT_MODEL_ID;
         }
+
+        // Migration: v2 → v3 — rename the old notebook_memory_enabled
+        // setting to notepad_enabled. The user-facing name changed and
+        // the old storage key was retired.
+        if (
+          mergedSettings.notebook_memory_enabled !== undefined &&
+          mergedSettings.notepad_enabled === undefined
+        ) {
+          mergedSettings.notepad_enabled = !!mergedSettings.notebook_memory_enabled;
+        }
+        delete mergedSettings.notebook_memory_enabled;
 
         // Migration: If search_enabled is true and grounding parameter doesn't exist yet,
         // set grounding to true to preserve user's previous search preference

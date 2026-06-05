@@ -24,10 +24,11 @@ const langExtMap = {
 };
 
 export function copyCode(button) {
-  const codeEl = button
-    .closest(".code-block-wrapper")
-    .querySelector("pre code");
-  if (!codeEl) return; // Guard clause in case elements aren't found
+  const wrapper = button && button.closest(".code-block-wrapper");
+  if (!wrapper) return; // Guard: button isn't inside a code block
+
+  const codeEl = wrapper.querySelector("pre code");
+  if (!codeEl) return; // Guard: <pre><code> not found
 
   const text = codeEl.innerText;
   navigator.clipboard.writeText(text).then(() => {
@@ -46,6 +47,9 @@ export function copyCode(button) {
 }
 
 export function downloadCode(button, lang) {
+  const wrapper = button && button.closest(".code-block-wrapper");
+  if (!wrapper) return; // Guard: button isn't inside a code block
+
   // Remove any surrounding quotes that might have been added by JSON.stringify
   let cleanLang = lang;
   if (typeof lang === 'string' && lang.startsWith('"') && lang.endsWith('"')) {
@@ -54,9 +58,9 @@ export function downloadCode(button, lang) {
     cleanLang = lang.slice(1, -1);
   }
 
-  const codeEl = button
-    .closest(".code-block-wrapper")
-    .querySelector("pre code");
+  const codeEl = wrapper.querySelector("pre code");
+  if (!codeEl) return; // Guard: <pre><code> not found
+
   const code = codeEl.innerText;
   const extension = langExtMap[cleanLang.toLowerCase()] || "txt";
   const filename = `code-${Date.now()}.${extension}`;

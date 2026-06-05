@@ -140,8 +140,10 @@ class ToolManager {
             results: data.results.map(r => ({
               title: r.title,
               url: r.url,
-              description: r.description,
-              date: r.date
+              highlights: r.highlights,
+              author: r.author,
+              date: r.date,
+              subpages: r.subpages
             })),
             query: args.q
           };

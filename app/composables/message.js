@@ -19,6 +19,28 @@ import { generateSystemPrompt } from "~/composables/systemPrompt";
 import { toolManager } from "~/composables/toolsManager";
 import { getSessionToken } from "~/composables/useSession";
 
+// --- API health cache ---
+// Cache the API health response for 60s so we don't add ~100-300ms of
+// latency to every send. If the service is down we'll show the
+// unavailable message once and then re-check after 60s.
+const HEALTH_CACHE_TTL_MS = 60 * 1000;
+let _healthCache = { data: null, fetchedAt: 0 };
+
+async function fetchApiHealth() {
+  const res = await fetch("/api/api_health");
+  if (!res.ok) {
+    return { status: "down", reason: "bad_status" };
+  }
+  const data = await res.json();
+  _healthCache = { data, fetchedAt: Date.now() };
+  return data;
+}
+
+function isApiHealthyCached() {
+  if (!_healthCache.data) return false;
+  return Date.now() - _healthCache.fetchedAt < HEALTH_CACHE_TTL_MS;
+}
+
 /**
  * Formats a message object for the API, handling multimodal content including:
  * - User attachments (images, PDFs)
@@ -387,40 +409,38 @@ export async function* handleIncomingMessage(
       throw new Error("Missing required parameters for handleIncomingMessage");
     }
 
-    // Check if API is up and has available quota
-    try {
-      const healthResponse = await fetch("/api/api_health");
-      const health = await healthResponse.json();
-
-      // Check for various unavailability conditions
-      if (
-        health.status === "down" ||
-        health.dailyKeyUsageRemaining <= 0 ||
-        health.balanceRemaining <= 0
-      ) {
-        let message = "⚠️ **Service Unavailable**\n\n";
-
+    // Check if API is up and has available quota.
+    // Cached for 60s to avoid adding latency to every send.
+    if (!isApiHealthyCached()) {
+      try {
+        const health = await fetchApiHealth();
         if (
-          health.dailyKeyUsageRemaining !== undefined &&
-          health.dailyKeyUsageRemaining <= 0
-        ) {
-          message +=
-            "Daily API budget exhausted. Try again tomorrow or add your own API key in Settings → General.";
-        } else if (
-          health.balanceRemaining !== undefined &&
+          health.status === "down" ||
+          health.dailyKeyUsageRemaining <= 0 ||
           health.balanceRemaining <= 0
         ) {
-          message += "API balance depleted. Service temporarily unavailable.";
-        } else {
-          message += "Service temporarily unavailable. Please try again later.";
+          let message = "⚠️ **Service Unavailable**\n\n";
+          if (
+            health.dailyKeyUsageRemaining !== undefined &&
+            health.dailyKeyUsageRemaining <= 0
+          ) {
+            message +=
+              "Daily API budget exhausted. Try again tomorrow or add your own API key in Settings → General.";
+          } else if (
+            health.balanceRemaining !== undefined &&
+            health.balanceRemaining <= 0
+          ) {
+            message += "API balance depleted. Service temporarily unavailable.";
+          } else {
+            message += "Service temporarily unavailable. Please try again later.";
+          }
+          yield { content: message, reasoning: null };
+          return;
         }
-
-        yield { content: message, reasoning: null };
-        return;
+      } catch (error) {
+        // Continue anyway in case it was just the health check endpoint failing
+        console.error("Health check failed:", error);
       }
-    } catch (error) {
-      console.error("Health check failed:", error);
-      // We'll continue anyway, in case it was just the health check endpoint failing
     }
 
     // Find the selected model info

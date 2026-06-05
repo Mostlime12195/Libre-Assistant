@@ -5,7 +5,7 @@ import { useSettings } from "@/composables/useSettings";
 import { useDark, useToggle } from "@vueuse/core";
 import { SwitchRoot, SwitchThumb } from "reka-ui";
 import { Icon } from "@iconify/vue";
-import { loadNotebook } from "@/composables/notebook";
+import { loadNotepad } from "@/composables/notepad";
 
 // Define props and emits
 const props = defineProps(["isOpen", "initialTab"]);
@@ -16,9 +16,9 @@ const settingsManager = useSettings();
 const currTab = ref("general");
 const isDark = useDark();
 const toggleDark = useToggle(isDark);
-const globalMemoryEnabled = ref(false);
+const notepadEnabled = ref(false);
 const gptOssLimitTables = ref(false);
-const notebookMetadata = ref(null);
+const notepadMetadata = ref(null);
 const isMac = ref(false);
 
 // User profile fields
@@ -43,8 +43,8 @@ const navItems = [
     icon: "material-symbols:palette"
   },
   {
-    key: "notebook",
-    label: "Notebook",
+    key: "notepad",
+    label: "Notepad",
     icon: "material-symbols:book"
   },
   {
@@ -61,17 +61,20 @@ const navItems = [
 
 // --- Lifecycle Hooks ---
 onMounted(async () => {
-  await settingsManager.loadSettings();
-  console.log("Loaded settings:", settingsManager.settings);
+  // Settings are loaded by the shared Settings instance; just wait
+  // until they're available before reading them.
+  if (!settingsManager.isLoaded) {
+    await settingsManager.loadSettings();
+  }
   userName.value = settingsManager.settings.user_name || "";
   occupation.value = settingsManager.settings.occupation || "";
   customInstructions.value = settingsManager.settings.custom_instructions || "";
-  globalMemoryEnabled.value = settingsManager.settings.notebook_memory_enabled === true;
+  notepadEnabled.value = settingsManager.settings.notepad_enabled === true;
   gptOssLimitTables.value = settingsManager.settings.gpt_oss_limit_tables === true;
   customApiKey.value = settingsManager.settings.custom_api_key || "";
 
-  // Load notebook metadata
-  await loadNotebookData();
+  // Load notepad metadata
+  await loadNotepadData();
 
   // Detect platform
   if (typeof window !== "undefined") {
@@ -88,23 +91,22 @@ watch(
   }
 );
 
-watch(globalMemoryEnabled, (newVal) => {
-  console.log("globalMemoryEnabled changed to:", newVal);
+watch(notepadEnabled, (newVal) => {
+  console.log("[notepad] notepadEnabled changed to:", newVal);
 });
 
 // --- Functions ---
-async function loadNotebookData() {
-  const notebook = await loadNotebook();
-  notebookMetadata.value = notebook.metadata;
+async function loadNotepadData() {
+  const notepad = await loadNotepad();
+  notepadMetadata.value = notepad.metadata;
 }
 
 function closeSettings() {
   emit("close");
 }
 
-function toggleGlobalMemory(val) {
-  console.log("Toggling global memory from", globalMemoryEnabled.value, "to", val);
-  globalMemoryEnabled.value = val;
+function toggleNotepad(val) {
+  notepadEnabled.value = val;
 }
 
 async function saveSettings() {
@@ -112,24 +114,15 @@ async function saveSettings() {
   settingsManager.setSetting("user_name", userName.value);
   settingsManager.setSetting("occupation", occupation.value);
   settingsManager.setSetting("custom_instructions", customInstructions.value);
-  settingsManager.setSetting("notebook_memory_enabled", globalMemoryEnabled.value);
+  settingsManager.setSetting("notepad_enabled", notepadEnabled.value);
   settingsManager.setSetting("gpt_oss_limit_tables", gptOssLimitTables.value);
   settingsManager.setSetting("custom_api_key", customApiKey.value.trim());
-
-  console.log("Saving settings:", {
-    user_name: userName.value,
-    occupation: occupation.value,
-    custom_instructions: customInstructions.value,
-    notebook_memory_enabled: globalMemoryEnabled.value,
-    gpt_oss_limit_tables: gptOssLimitTables.value,
-    has_custom_api_key: !!customApiKey.value.trim()
-  });
 
   // Save settings and wait for completion before reloading
   await settingsManager.saveSettings();
 
-  // Reload notebook data after saving settings
-  await loadNotebookData();
+  // Reload notepad data after saving settings
+  await loadNotepadData();
 
   // Close settings and refresh the page
   closeSettings();
@@ -140,9 +133,9 @@ async function saveSettings() {
   }, 100);
 }
 
-function openNotebook() {
+function openNotepad() {
   closeSettings();
-  navigateTo('/notebook');
+  navigateTo('/notepad');
 }
 </script>
 
@@ -270,57 +263,63 @@ function openNotebook() {
             </div>
           </div>
 
-          <!-- Notebook Tab -->
-          <div v-show="currTab === 'notebook'" class="settings-section">
+          <!-- Notepad Tab -->
+          <div v-show="currTab === 'notepad'" class="settings-section">
             <div class="settings-content">
               <div class="content-header">
-                <h2>Notebook (Preview)</h2>
-                <p>Your Notebook is a document that Libre maintains about you. It contains observations 
-                  about your personality, communication style, ongoing projects, and recent activity, all stored on your device. It is used to give Libre context about you.</p>
+                <h2>Notepad (Preview)</h2>
+                <p>
+                  Your Notepad is a private document that Libre maintains about you. It contains
+                  observations about your personality, communication style, ongoing projects, and
+                  recent activity, all stored locally on your device. Libre uses it as working
+                  memory to give you more relevant answers.
+                </p>
               </div>
 
               <div class="setting-item">
                 <div class="setting-info">
-                  <h3>Enable Notebook</h3>
-                  <p>Allow the AI to remember important facts about you across conversations</p>
+                  <h3>Enable Notepad</h3>
+                  <p>Let Libre maintain a private Notepad about you across conversations</p>
                 </div>
                 <div class="switch-container">
-                  <SwitchRoot class="switch-root" :modelValue="globalMemoryEnabled"
-                    @update:modelValue="toggleGlobalMemory">
+                  <SwitchRoot class="switch-root" :modelValue="notepadEnabled"
+                    @update:modelValue="toggleNotepad">
                     <SwitchThumb class="switch-thumb" />
                   </SwitchRoot>
                 </div>
               </div>
 
-              <div v-if="globalMemoryEnabled" class="notebook-actions-section">
-                <div class="notebook-status" v-if="notebookMetadata">
+              <div v-if="notepadEnabled" class="notepad-actions-section">
+                <div class="notepad-status" v-if="notepadMetadata">
                   <div class="status-item">
                     <span class="status-label">Last updated:</span>
-                    <span class="status-value">{{ notebookMetadata.lastUpdated ? new Date(notebookMetadata.lastUpdated).toLocaleDateString() : 'Never' }}</span>
+                    <span class="status-value">{{ notepadMetadata.lastUpdated ? new Date(notepadMetadata.lastUpdated).toLocaleDateString() : 'Never' }}</span>
                   </div>
                   <div class="status-item">
                     <span class="status-label">Updates:</span>
-                    <span class="status-value">{{ notebookMetadata.updateCount || 0 }}</span>
+                    <span class="status-value">{{ notepadMetadata.updateCount || 0 }}</span>
                   </div>
                 </div>
 
-                <div class="notebook-buttons">
-                  <button @click="openNotebook" class="view-notebook-btn">
+                <div class="notepad-buttons">
+                  <button @click="openNotepad" class="view-notepad-btn">
                     <Icon icon="material-symbols:book" width="18" height="18" />
-                    View My Notebook
+                    View My Notepad
                   </button>
                 </div>
-                
-                <div class="notebook-info">
+
+                <div class="notepad-info">
                   <p>
-                    The Notebook is automatically updated in the background based on your conversations. 
-                    It typically updates once per day or when you have several new conversations.
+                    The Notepad is automatically updated in the background based on your
+                    conversations. It typically updates once per day or when you have several
+                    new conversations. Your Notepad is never sent anywhere except the model
+                    that's maintaining it.
                   </p>
                 </div>
               </div>
 
-              <div v-else class="notebook-disabled-message">
-                <p>The Notebook is currently disabled. Enable it to let AI document your chats.</p>
+              <div v-else class="notepad-disabled-message">
+                <p>The Notepad is currently disabled. Enable it to let Libre document your chats.</p>
               </div>
             </div>
           </div>
@@ -843,8 +842,8 @@ function openNotebook() {
   color: var(--text-secondary);
 }
 
-/* Notebook Section Styles */
-.notebook-intro {
+/* Notepad Section Styles */
+.notepad-intro {
   margin-bottom: 1.5rem;
   padding: 1rem;
   background: var(--bg-primary);
@@ -852,18 +851,18 @@ function openNotebook() {
   border: 1px solid var(--border);
 }
 
-.notebook-intro p {
+.notepad-intro p {
   margin: 0;
   font-size: 0.9375rem;
   color: var(--text-secondary);
   line-height: 1.6;
 }
 
-.notebook-actions-section {
+.notepad-actions-section {
   margin-top: 1.5rem;
 }
 
-.notebook-status {
+.notepad-status {
   display: flex;
   gap: 2rem;
   margin-bottom: 1.5rem;
@@ -892,14 +891,14 @@ function openNotebook() {
   color: var(--text-primary);
 }
 
-.notebook-buttons {
+.notepad-buttons {
   display: flex;
   gap: 0.75rem;
   margin-bottom: 1.5rem;
 }
 
-.view-notebook-btn,
-.clear-notebook-btn {
+.view-notepad-btn,
+.clear-notepad-btn {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -912,42 +911,42 @@ function openNotebook() {
   transition: all 0.2s ease;
 }
 
-.view-notebook-btn {
+.view-notepad-btn {
   background: var(--primary);
   color: var(--primary-foreground);
   border: none;
 }
 
-.view-notebook-btn:hover {
+.view-notepad-btn:hover {
   background: var(--primary-600);
 }
 
-.clear-notebook-btn {
+.clear-notepad-btn {
   background: var(--bg-primary);
   color: var(--destructive);
   border: 1px solid var(--destructive);
 }
 
-.clear-notebook-btn:hover {
+.clear-notepad-btn:hover {
   background: var(--destructive);
   color: var(--destructive-foreground);
 }
 
-.notebook-info {
+.notepad-info {
   padding: 1rem;
   background: var(--bg-primary);
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
 }
 
-.notebook-info p {
+.notepad-info p {
   margin: 0;
   font-size: 0.875rem;
   color: var(--text-secondary);
   line-height: 1.5;
 }
 
-.notebook-disabled-message {
+.notepad-disabled-message {
   margin-top: 1.5rem;
   padding: 1rem;
   background: var(--bg-primary);
@@ -955,7 +954,7 @@ function openNotebook() {
   border-radius: var(--radius-md);
 }
 
-.notebook-disabled-message p {
+.notepad-disabled-message p {
   margin: 0;
   font-size: 0.875rem;
   color: var(--text-secondary);

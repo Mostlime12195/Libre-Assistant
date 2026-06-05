@@ -88,7 +88,7 @@ export function useConversation() {
   async function createNewConversationWithMessage(initialMessage, attachments = []) {
     // First, add the initial user message to the current messages array
     const initialUserMessage = {
-      id: Date.now().toString(36) + Math.random().toString(36).substr(2, 9),
+      id: Date.now().toString(36) + Math.random().toString(36).substring(2, 11),
       role: "user",
       content: initialMessage,
       attachments: attachments.map(a => ({

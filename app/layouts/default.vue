@@ -161,23 +161,17 @@ function openSettingsPanel(tabKey = 'general') {
 }
 
 function handleParameterConfigSave(params) {
-  console.log("Parameter config saved:", params);
-  // The settings are already saved in the ParameterConfigPanel component
-  // This function can be used for any additional actions needed after saving
+  // The settings are already saved in the ParameterConfigPanel component.
+  // Hook kept for any future additional actions (e.g. analytics).
 }
 
 function handleDeleteConversation(id) {
-  // This will be handled in the page components, but we can emit an event
-  console.log("Delete conversation:", id);
+  // Pages own the actual delete logic; this is a placeholder for layout-level hooks.
 }
 
 function handleNewConversation() {
-  // This will be handled by navigating to the /new route
   router.push('/');
-  console.log("New conversation requested");
 }
-
-
 
 /**
  * Handles model selection from the TopBar component.
@@ -193,14 +187,6 @@ function handleModelSelect(modelId, modelName) {
  */
 function toggleIncognito() {
   globalToggleIncognito();
-}
-
-/**
- * Sends a message
- */
-function sendMessage(message, originalMessage = null) {
-  // This will be implemented based on actual needs
-  console.log("Sending message:", message);
 }
 
 //-- Keyboard shortcuts

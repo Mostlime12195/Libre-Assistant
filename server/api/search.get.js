@@ -31,7 +31,10 @@ export default defineEventHandler(async (event) => {
             },
             body: JSON.stringify({
                 query: q,
-                numResults: Math.min(parseInt(numResults) || 5, 10)
+                numResults: Math.min(parseInt(numResults) || 5, 10),
+                contents: {
+                    highlights: true
+                }
             })
         });
 
@@ -49,8 +52,10 @@ export default defineEventHandler(async (event) => {
             results: data.results?.map(r => ({
                 title: r.title || '',
                 url: r.url || '',
-                description: r.text || r.snippet || '',
-                date: r.publishedDate || null
+                highlights: Array.isArray(r.highlights) ? r.highlights : [],
+                author: r.author || null,
+                date: r.publishedDate || null,
+                subpages: Array.isArray(r.subpages) ? r.subpages : []
             })) || [],
             query: q
         };

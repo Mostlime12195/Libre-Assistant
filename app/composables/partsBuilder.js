@@ -1,6 +1,6 @@
 /**
  * PartsBuilder - Manages the structured parts array for assistant messages
- * 
+ *
  * Design Principles:
  * 1. IMMUTABILITY: All updates create new objects, never mutate existing ones
  * 2. UUID-BASED: Each part has a unique ID for reliable tracking
@@ -13,7 +13,7 @@
  * Generate a unique ID
  */
 function generateId() {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 9)}`;
+  return `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 11)}`;
 }
 
 /**
@@ -70,9 +70,9 @@ export class PartsBuilder {
    */
   appendContent(text) {
     if (!text) return this.getParts();
-    
+
     const contentPart = this.parts.find(p => p.type === 'content' && !p._finalized);
-    
+
     if (contentPart) {
       const updatedPart = { ...contentPart, content: contentPart.content + text };
       this._replacePart(contentPart._id, updatedPart);
@@ -84,7 +84,7 @@ export class PartsBuilder {
         _finalized: false
       });
     }
-    
+
     return this.getParts();
   }
 
@@ -103,10 +103,10 @@ export class PartsBuilder {
    * Append reasoning text
    */
   appendReasoning(text) {
-    if (!text || text.trim() === 'None') return this.getParts();
-    
+    if (!text || !text.trim() || text.trim() === 'None') return this.getParts();
+
     const reasoningPart = this.parts.find(p => p.type === 'reasoning' && !p._finalized);
-    
+
     if (reasoningPart) {
       const updatedPart = { ...reasoningPart, content: reasoningPart.content + text };
       this._replacePart(reasoningPart._id, updatedPart);
@@ -118,7 +118,7 @@ export class PartsBuilder {
         _finalized: false
       });
     }
-    
+
     return this.getParts();
   }
 
@@ -135,13 +135,13 @@ export class PartsBuilder {
 
   /**
    * Add or update a tool
-   * 
+   *
    * Logic:
    * 1. Finalize any open content part (tools separate content segments)
    * 2. If tool has an ID we've seen before -> update existing tool
    * 3. If API index is mapped AND the mapped tool hasn't completed -> update that part
    * 4. Otherwise -> create new tool part
-   * 
+   *
    * This handles:
    * - Streaming chunks for the same tool
    * - Multiple tools in sequence
@@ -153,15 +153,15 @@ export class PartsBuilder {
     // This ensures content segments are properly separated by tool calls
     // e.g., "reason -> search -> content -> crawl -> content" creates two separate content parts
     this.finalizeContent();
-    
+
     const apiIndex = toolData.index;
     const toolId = toolData.id;
-    
+
     // Case 1: Tool has an ID we've seen before - update it
     if (toolId && this.toolIdToPartId.has(toolId)) {
       const partId = this.toolIdToPartId.get(toolId);
       const part = this.partMap.get(partId);
-      
+
       if (part && part.type === 'tool_group') {
         const tool = part.tools[0];
         if (tool) {
@@ -173,22 +173,22 @@ export class PartsBuilder {
               arguments: tool.function.arguments + (toolData.function?.arguments || '')
             }
           };
-          
+
           this._replacePart(partId, { ...part, tools: [updatedTool] });
           return this.getParts();
         }
       }
     }
-    
+
     // Case 2: API index is mapped AND the tool hasn't completed yet - update existing
     if (apiIndex !== undefined && this.toolIndexToPartId.has(apiIndex)) {
       const partId = this.toolIndexToPartId.get(apiIndex);
       const part = this.partMap.get(partId);
-      
+
       if (part && part.type === 'tool_group') {
         const tool = part.tools[0];
         const isCompleted = tool?.id && this.completedToolIds.has(tool.id);
-        
+
         // Only update if not completed
         if (!isCompleted) {
           const updatedTool = {
@@ -200,9 +200,9 @@ export class PartsBuilder {
               arguments: tool.function.arguments + (toolData.function?.arguments || '')
             }
           };
-          
+
           this._replacePart(partId, { ...part, tools: [updatedTool] });
-          
+
           if (toolId) {
             this.toolIdToPartId.set(toolId, partId);
           }
@@ -212,11 +212,11 @@ export class PartsBuilder {
         // Fall through to create new tool
       }
     }
-    
+
     // Case 3: Create new tool part
     const globalIndex = this.nextToolIndex++;
     const newToolId = toolId || `tool-${globalIndex}`;
-    
+
     const newPart = {
       _id: generateId(),
       type: 'tool_group',
@@ -232,14 +232,14 @@ export class PartsBuilder {
         result: null
       }]
     };
-    
+
     this._addPart(newPart);
     this.toolIndexToPartId.set(apiIndex, newPart._id);
-    
+
     if (toolId) {
       this.toolIdToPartId.set(toolId, newPart._id);
     }
-    
+
     return this.getParts();
   }
 
@@ -248,7 +248,7 @@ export class PartsBuilder {
    */
   setToolResult(toolId, result) {
     const partId = this.toolIdToPartId.get(toolId);
-    
+
     if (partId) {
       const part = this.partMap.get(partId);
       if (part && part.type === 'tool_group') {
@@ -261,7 +261,7 @@ export class PartsBuilder {
         }
       }
     }
-    
+
     // Fallback: search all parts
     for (const part of this.parts) {
       if (part.type === 'tool_group') {
@@ -275,7 +275,7 @@ export class PartsBuilder {
         }
       }
     }
-    
+
     return false;
   }
 
@@ -284,9 +284,9 @@ export class PartsBuilder {
    */
   addImage(url, revisedPrompt = null) {
     if (!url) return this.getParts();
-    
+
     const imagePart = this.parts.find(p => p.type === 'image');
-    
+
     if (imagePart) {
       const updatedPart = {
         ...imagePart,
@@ -300,7 +300,7 @@ export class PartsBuilder {
         images: [{ url, revised_prompt: revisedPrompt }]
       });
     }
-    
+
     return this.getParts();
   }
 
@@ -310,7 +310,7 @@ export class PartsBuilder {
   processImage(imageData) {
     const url = imageData.image_url?.url || imageData.url;
     const revisedPrompt = imageData.revised_prompt || null;
-    
+
     if (url) {
       return this.addImage(url, revisedPrompt);
     }
@@ -324,17 +324,17 @@ export class PartsBuilder {
     if (this.parts.some(p => p.type === 'content') || !content) {
       return this.getParts();
     }
-    
+
     const newPart = {
       _id: generateId(),
       type: 'content',
       content: content,
       _finalized: true
     };
-    
+
     this.parts = [newPart, ...this.parts];
     this.partMap.set(newPart._id, newPart);
-    
+
     return this.getParts();
   }
 
@@ -352,13 +352,13 @@ export class PartsBuilder {
   _replacePart(partId, newPart) {
     const index = this.parts.findIndex(p => p._id === partId);
     if (index === -1) return;
-    
+
     this.parts = [
       ...this.parts.slice(0, index),
       newPart,
       ...this.parts.slice(index + 1)
     ];
-    
+
     this.partMap.set(partId, newPart);
   }
 
@@ -415,7 +415,7 @@ export class TimingTracker {
   }
 
   calculateReasoningDuration() {
-    if (this.message.reasoningStartTime === null) {
+    if (this.message.reasoningStartTime === null || this.message.reasoningStartTime === undefined) {
       return null;
     }
     const endTime = this.message.reasoningEndTime || new Date();

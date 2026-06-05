@@ -9,6 +9,8 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "version:patch": "npm version patch",
     "version:minor": "npm version minor",
     "version:major": "npm version major"
@@ -38,7 +40,10 @@
     "vue-router": "^4.6.3"
   },
   "devDependencies": {
+    "@vue/test-utils": "^2.4.10",
     "@vueuse/core": "^14.1.0",
-    "@vueuse/nuxt": "^14.1.0"
+    "@vueuse/nuxt": "^14.1.0",
+    "happy-dom": "^20.9.0",
+    "vitest": "^4.1.8"
   }
 }

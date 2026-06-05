@@ -14,13 +14,15 @@ import { useWindowSize, onKeyStroke, useMagicKeys } from "@vueuse/core";
 import Logo from "./Logo.vue";
 import BottomSheetModelSelector from "./BottomSheetModelSelector.vue";
 import { useAttachments } from "~/composables/useAttachments";
-import { 
-  findModelById, 
-  showReasoningToggle, 
-  showReasoningEffortSelector, 
+import { useDraftPrompt } from "~/composables/useDraftPrompt";
+import {
+  findModelById,
+  showReasoningToggle,
+  showReasoningEffortSelector,
   getDefaultReasoningEffort,
   isReasoningEnabled as checkReasoningEnabled,
-  normalizeReasoningConfig
+  normalizeReasoningConfig,
+  supportsToolUse,
 } from "~/composables/availableModels";
 
 // Define component properties and emitted events
@@ -30,6 +32,10 @@ const props = defineProps({
   availableModels: Array, // Add available models to check tool support
   settingsManager: Object, // Add settings manager prop
   selectedModelName: String,
+  conversationId: {
+    type: String,
+    default: ''
+  },
 });
 const emit = defineEmits([
   "send-message",
@@ -54,6 +60,10 @@ const fileInputRef = ref(null); // Ref for the hidden file input
 const isDragging = ref(false); // Track drag state for visual feedback
 const isProcessingFiles = ref(false); // Track file processing state for loading indicator
 const isFocused = ref(false); // Track focus state for the textarea
+
+// --- Draft Prompt Persistence ---
+const conversationIdRef = computed(() => props.conversationId || '');
+const { clearDraft } = useDraftPrompt(conversationIdRef, inputMessage);
 
 // --- Attachments ---
 const {
@@ -95,6 +105,16 @@ const supportsReasoning = computed(() => {
   if (!selectedModel.value) return false;
   const config = normalizeReasoningConfig(selectedModel.value);
   return config.supported;
+});
+
+// Computed property to check if the current model supports tool use
+// (e.g., the Exa search and getPageContents tools). When false, the search
+// toggle button should be hidden in the UI to avoid giving the user a control
+// that has no effect (the server-side `tool_use: false` flag is already honored
+// in message.js, but the UI was previously still showing the toggle).
+const hasToolUseSupport = computed(() => {
+  if (!selectedModel.value) return false;
+  return supportsToolUse(selectedModel.value);
 });
 
 // Computed property to check if the current model should show a reasoning toggle
@@ -263,6 +283,8 @@ async function submitMessage() {
   // Emit the message to parent component, including search enabled state
   emit("send-message", inputMessage.value, inputMessage.value, toRaw(attachments.value), isSearchEnabled.value);
   inputMessage.value = "";
+  // Clear draft for this conversation
+  await clearDraft();
   // Clear attachments after sending
   clearAttachments();
   // Force textarea resize after clearing
@@ -329,9 +351,16 @@ function toggleReasoning() {
 }
 
 /**
- * Toggles the search state
+ * Toggles the search state.
+ *
+ * Defensive guard: if the current model doesn't support tool use, the search
+ * button is hidden in the UI, but this function is also exposed via
+ * `defineExpose` and can be invoked programmatically. Refuse to enable search
+ * in that case so a stale setting can never be turned back on for a model
+ * that won't honor it.
  */
 function toggleSearch() {
+  if (!hasToolUseSupport.value) return;
   isSearchEnabled.value = !isSearchEnabled.value;
 }
 
@@ -591,7 +620,7 @@ defineExpose({ setMessage, toggleReasoning, setReasoningEffort, toggleSearch, $e
           >
             <!-- Mobile: Search toggle -->
             <button
-              v-if="isMobile"
+              v-if="isMobile && selectedModel && hasToolUseSupport"
               type="button"
               class="popover-toggle-item"
               :class="{ 'toggle-enabled': isSearchEnabled }"
@@ -674,7 +703,7 @@ defineExpose({ setMessage, toggleReasoning, setReasoningEffort, toggleSearch, $e
 
         <!-- Desktop: Search toggle button -->
         <button
-          v-if="!isMobile"
+          v-if="!isMobile && selectedModel && hasToolUseSupport"
           type="button" class="feature-button search-toggle-btn"
           :class="{ 'search-enabled': isSearchEnabled }" @click="toggleSearch"
           :aria-label="isSearchEnabled ? 'Disable search' : 'Enable search'">

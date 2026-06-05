@@ -7,26 +7,65 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue';
+import { onMounted, watch } from 'vue';
 // Import the main CSS file to ensure all styling is loaded
 import './assets/main.css';
-import { runNotebookPipeline } from '~/composables/notebookPipeline';
+import { runNotepadPipeline } from '~/composables/notepadPipeline';
 import { useSettings } from '~/composables/useSettings';
 
-// Initialize settings to get API key for pipeline
 const settingsManager = useSettings();
 
-// Run Notebook pipeline on app mount (non-blocking)
+// Debounce so that we don't fire the pipeline multiple times in quick
+// succession (e.g. when the user toggles the Notepad setting on and
+// off, or when settings hydrate in several localforage round-trips).
+let pendingRun = null;
+
+function maybeRunPipeline() {
+  if (pendingRun) return;
+
+  const apiKey = settingsManager.settings?.custom_api_key;
+  const notepadEnabled = settingsManager.settings?.notepad_enabled === true;
+
+  if (!apiKey || !notepadEnabled) return;
+
+  // Wait a tick in case settings is mid-hydration, then start.
+  pendingRun = setTimeout(() => {
+    pendingRun = null;
+    runNotepadPipeline(apiKey).catch((error) => {
+      console.error('[notepad] Pipeline error:', error);
+    });
+  }, 250);
+}
+
 onMounted(() => {
-  // Delay slightly to let the app fully initialize
-  setTimeout(() => {
-    const apiKey = settingsManager.settings?.custom_api_key;
-    if (apiKey) {
-      runNotebookPipeline(apiKey).catch(error => {
-        console.error("Notebook pipeline error:", error);
-      });
-    }
-  }, 2000); // 2 second delay
+  // If settings are already loaded by the time we mount, fire immediately.
+  if (settingsManager.isLoaded) {
+    maybeRunPipeline();
+  } else {
+    // Otherwise watch for the load, fire once, then stop.
+    const stop = watch(
+      () => settingsManager.isLoaded,
+      (loaded) => {
+        if (loaded) {
+          maybeRunPipeline();
+          stop();
+        }
+      },
+      { immediate: true },
+    );
+  }
+
+  // Re-evaluate when the user toggles the Notepad on/off or sets a key.
+  watch(
+    () => [
+      settingsManager.isLoaded,
+      settingsManager.settings?.notepad_enabled,
+      settingsManager.settings?.custom_api_key,
+    ],
+    () => {
+      if (settingsManager.isLoaded) maybeRunPipeline();
+    },
+  );
 });
 </script>
 

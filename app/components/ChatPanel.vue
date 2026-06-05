@@ -136,7 +136,7 @@ const normalizedMessages = computed(() => {
         for (const toolCall of msg.tool_calls) {
           parts.push({
             type: 'tool_group',
-            _id: `tool-${toolCall.id || Math.random().toString(36).substr(2, 9)}`,
+            _id: `tool-${toolCall.id || Math.random().toString(36).substring(2, 11)}`,
             tools: [toolCall]
           });
         }
@@ -402,11 +402,25 @@ function getFormattedStatsForDisplay(messageId) {
   return getFormattedStatsFromExecutedTools(message.executed_tools || []);
 }
 
-// Function to copy message content
-function copyMessage(content, event) {
-  const button = event.currentTarget;
+// Extract all text content from a message for copying
+function getMessageCopyText(message) {
+  // If message has parts, concatenate all content-type parts
+  if (message.parts && message.parts.length > 0) {
+    return message.parts
+      .filter(part => part.type === 'content')
+      .map(part => part.content)
+      .join('\n\n');
+  }
+  // Fallback to legacy content field for user messages
+  return message.content || '';
+}
 
-  navigator.clipboard.writeText(content).then(() => {
+// Function to copy message content
+function copyMessage(message, event) {
+  const button = event.currentTarget;
+  const textToCopy = getMessageCopyText(message);
+
+  navigator.clipboard.writeText(textToCopy).then(() => {
     // Visual feedback - temporarily change button to success state
     button.classList.add('copied');
 
@@ -652,8 +666,6 @@ defineExpose({ scrollToEnd, isAtBottom, chatWrapper });
                                 :src="image.url"
                                 :alt="image.revised_prompt || 'Generated image'"
                                 loading="lazy"
-                                @load="console.log('Image loaded')"
-                                @error="console.log('Image failed to load')"
                               />
                               <div v-if="image.revised_prompt" class="image-caption">
                                 {{ image.revised_prompt }}
@@ -737,7 +749,7 @@ defineExpose({ scrollToEnd, isAtBottom, chatWrapper });
                   </div>
               <div class="message-content-footer" :class="{ 'user-footer': message.role === 'user' }">
                 <div class="footer-left-actions">
-                  <button class="footer-action-btn copy-button" @click="copyMessage(message.content, $event)" :title="'Copy message'"
+                  <button class="footer-action-btn copy-button" @click="copyMessage(message, $event)" :title="'Copy message'"
                     aria-label="Copy message">
                     <Icon icon="material-symbols:content-copy-outline-rounded" width="18px" height="18px" />
                   </button>

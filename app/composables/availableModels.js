@@ -180,6 +180,22 @@ export function buildReasoningParams(model, userSettings) {
 }
 
 /**
+ * Check if a model supports tool use (e.g., search, function calling).
+ *
+ * Defaults to true when the property is not specified on the model, matching
+ * the existing server-side check in `message.js`
+ * (`selectedModelInfo?.tool_use !== false`). This keeps the UI consistent
+ * with the request pipeline: if a model is missing the `tool_use` field, it
+ * is treated as tool-capable.
+ *
+ * @param {Object} model - The model object
+ * @returns {boolean}
+ */
+export function supportsToolUse(model) {
+  return model?.tool_use !== false;
+}
+
+/**
  * Finds a model by its ID in the available models list, including nested categories.
  * @param {Array} models - The list of models to search.
  * @param {string} id - The ID of the model to find.
@@ -281,7 +297,7 @@ export const availableModels = [
         tool_use: true,
         reasoning: {
           supported: true,
-          toggleable: false,
+          toggleable: true,
         },
         extra_functions: [],
         extra_parameters: {}
@@ -380,6 +396,22 @@ export const availableModels = [
     ]
   },
   {
+    category: "Liquid AI",
+    logo: "/ai_logos/liquid.svg",
+    models: [
+      {
+        id: "liquid/lfm-2-24b-a2b",
+        name: "LFM2 24B A2B",
+        description: "Cheap yet versatile open-weights model.",
+        tool_use: false,
+        vision: false,
+        reasoning: {
+          supported: false,
+        },
+      },
+    ]
+  },
+  {
     category: "Moonshot AI",
     logo: "/ai_logos/moonshot.svg",
     models: [
@@ -425,30 +457,21 @@ export const availableModels = [
     logo: "/ai_logos/minimax.svg",
     models: [
       {
+        id: "minimax/minimax-m3",
+        name: "MiniMax M3",
+        description: "Frontier coding model with 1M token context window and enhanced architecture.",
+        reasoning: {
+          supported: true,
+          toggleable: true,
+        },
+      },
+      {
         id: "minimax/minimax-m2.7",
         name: "MiniMax M2.7",
-        description: "Latest frontier open-weights coding model with enhanced capabilities.",
+        description: "Open-weights coding model.",
         reasoning: {
           supported: true,
-          toggleable: false,
-        },
-      },
-      {
-        id: "minimax/minimax-m2.5",
-        name: "MiniMax M2.5",
-        description: "Frontier open-weights coding model",
-        reasoning: {
-          supported: true,
-          toggleable: false,
-        },
-      },
-      {
-        id: "minimax/minimax-m2.1",
-        name: "MiniMax M2.1",
-        description: "High-quality open-weights coding model",
-        reasoning: {
-          supported: true,
-          toggleable: false,
+          toggleable: true,
         },
       },
     ],
