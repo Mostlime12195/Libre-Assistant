@@ -27,7 +27,7 @@ All notable changes to Libre Assistant are documented here.
 
 ### Fixed
 - Reimplemented Notebook (now Notepad) system entirely to bring a much more reliable experience
-- Fixed model ID used for Notepad consolidation from 'claude-3.5-haiku' to 'claude-4.5-haiku', which should result in significantly better quality notepad entries
+- Fixed model ID used for Notepad consolidation from 'claude-3.5-haiku' to 'claude-haiku-4.5', which should result in significantly better quality notepad entries
 - Fixed the search API response not properly mapping some of the data, forcing the model to crawl webpages alongside search. This update should make search much faster, cheaper, and higher quality.
 - Fixed message copy button
 

@@ -44,7 +44,7 @@ export const NOTEPAD_PIPELINE_PENDING_KEY = "notepad_pipeline_pending";
  * Model used for Stage 2 (consolidation). Centralized here so it's easy
  * to swap if the model is renamed or a better one becomes available.
  */
-const CONSOLIDATION_MODEL = "anthropic/claude-4.5-haiku";
+const CONSOLIDATION_MODEL = "anthropic/claude-haiku-4.5";
 
 /** How long a pipeline run is allowed to stay in "running" before we assume it's stuck. */
 const STUCK_THRESHOLD_MS = 30 * 60 * 1000;
@@ -290,7 +290,7 @@ async function stage2Consolidate(apiKey) {
         ],
         stream: false,
         temperature: 0.3,
-        max_tokens: 4000,
+        max_tokens: 6000,
         ...(apiKey && { customApiKey: apiKey }),
       }),
     });
