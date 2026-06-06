@@ -223,9 +223,19 @@ export const availableModels = [
     logo: "/ai_logos/anthropic.svg",
     models: [
       {
+        id: "anthropic/claude-opus-4.8",
+        name: "Claude Opus 4.8",
+        description: "SOTA Anthropic model for complex reasoning and analysis.",
+        reasoning: {
+          supported: true,
+          toggleable: true,
+        },
+        vision: true,
+      },
+      {
         id: "anthropic/claude-opus-4.7",
         name: "Claude Opus 4.7",
-        description: "Most capable Anthropic model for complex reasoning and analysis.",
+        description: "Capable Anthropic model for complex reasoning and analysis.",
         reasoning: {
           supported: true,
           toggleable: true,
@@ -332,6 +342,20 @@ export const availableModels = [
     logo: "/ai_logos/gemini.svg",
     models: [
       {
+        id: "google/gemini-3.5-flash",
+        name: "Gemini 3.5 Flash",
+        description: "Preview of frontier-level fast model, distilled from Gemini 3 Pro and optimized for speed.",
+        reasoning: {
+          supported: true,
+          toggleable: false,
+          effort: {
+            levels: ['minimal', 'low', 'medium', 'high'],
+            default: 'medium'
+          }
+        },
+        vision: true,
+      },
+      {
         id: "google/gemini-3-flash-preview",
         name: "Gemini 3 Flash Preview",
         description: "Preview of frontier-level fast model, distilled from Gemini 3 Pro and optimized for speed.",
@@ -340,7 +364,7 @@ export const availableModels = [
           toggleable: false,
           effort: {
             levels: ['minimal', 'low', 'medium', 'high'],
-            default: 'medium'
+            default: 'high'
           }
         },
         vision: true,
@@ -361,7 +385,7 @@ export const availableModels = [
       },
       {
         id: "google/gemini-2.5-flash-lite-preview-09-2025",
-        name: "Gemini 2.5 Flash Lite Preview",
+        name: "Gemini 2.5 Flash Lite",
         description: "Lightweight variant of Gemini 2.5 Flash optimized for speed.",
         reasoning: {
           supported: true,
@@ -460,6 +484,7 @@ export const availableModels = [
         id: "minimax/minimax-m3",
         name: "MiniMax M3",
         description: "Frontier coding model with 1M token context window and enhanced architecture.",
+        vision: true,
         reasoning: {
           supported: true,
           toggleable: true,
@@ -469,6 +494,32 @@ export const availableModels = [
         id: "minimax/minimax-m2.7",
         name: "MiniMax M2.7",
         description: "Open-weights coding model.",
+        reasoning: {
+          supported: true,
+          toggleable: true,
+        },
+      },
+    ],
+  },
+  {
+    category: "Mistral",
+    logo: "/ai_logos/mistral.svg",
+    models: [
+      {
+        id: "mistralai/mistral-medium-3-5",
+        name: "Mistral Medium 3.5",
+        description: "Open-weights medium Mistral model with multimodality.",
+        vision: true,
+        reasoning: {
+          supported: true,
+          toggleable: true,
+        },
+      },
+      {
+        id: "mistralai/mistral-small-2603",
+        name: "Mistral Small 4",
+        description: "Open-weights small Mistral model with multimodality.",
+        vision: true,
         reasoning: {
           supported: true,
           toggleable: true,
@@ -579,19 +630,6 @@ export const availableModels = [
           }
         },
       },
-      {
-        id: "openai/gpt-5-mini",
-        name: "GPT-5 Mini",
-        description: "Streamlined version of GPT-5 optimized for lightweight tasks.",
-        reasoning: {
-          supported: true,
-          toggleable: false,
-          effort: {
-            levels: ['low', 'medium', 'high'],
-            default: 'medium'
-          }
-        },
-      },
     ],
   },
   {
@@ -615,6 +653,16 @@ export const availableModels = [
     category: "Qwen",
     logo: "/ai_logos/qwen.svg",
     models: [
+      {
+        id: "qwen/qwen3.7-plus",
+        name: "Qwen3.7 Plus",
+        description: "Capable Qwen model with multimodality.",
+        vision: true,
+        reasoning: {
+          supported: true,
+          toggleable: true,
+        },
+      },
       {
         id: "qwen/qwen3.5-397b-a17b",
         name: "Qwen3.5 397B A17B",
