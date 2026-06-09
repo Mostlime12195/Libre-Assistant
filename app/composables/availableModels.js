@@ -40,6 +40,8 @@
  * providers: ["provider-id"], // Optional - restricts model to specific OpenRouter provider(s)
  */
 
+import { lchown } from "node:fs";
+
 export const DEFAULT_MODEL_ID = "moonshotai/kimi-k2.6";
 
 /**
@@ -228,7 +230,11 @@ export const availableModels = [
         description: "State-of-the-art AI for incredibly complex, novel, or long-horizon tasks.",
         reasoning: {
           supported: true,
-          toggleable: true,
+          toggleable: false,
+          effort: {
+            levels: ["low", "med", "high", "xhigh", "max"],
+            default: "low",
+          },
         },
         vision: true,
       },
