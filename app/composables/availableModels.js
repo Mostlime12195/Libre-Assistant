@@ -223,9 +223,19 @@ export const availableModels = [
     logo: "/ai_logos/anthropic.svg",
     models: [
       {
+        id: "anthropic/claude-fable-5",
+        name: "Claude Fable 5",
+        description: "State-of-the-art AI for incredibly complex, novel, or long-horizon tasks.",
+        reasoning: {
+          supported: true,
+          toggleable: true,
+        },
+        vision: true,
+      },
+      {
         id: "anthropic/claude-opus-4.8",
         name: "Claude Opus 4.8",
-        description: "SOTA Anthropic model for complex reasoning and analysis.",
+        description: "Strong Anthropic model for complex reasoning and analysis.",
         reasoning: {
           supported: true,
           toggleable: true,
