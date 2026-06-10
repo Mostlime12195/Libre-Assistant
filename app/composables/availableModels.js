@@ -232,7 +232,7 @@ export const availableModels = [
           supported: true,
           toggleable: false,
           effort: {
-            levels: ["low", "med", "high", "xhigh", "max"],
+            levels: ["low", "medium", "high", "xhigh"],
             default: "low",
           },
         },
