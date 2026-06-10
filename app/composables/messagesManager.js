@@ -334,10 +334,17 @@ export function useMessagesManager(chatPanel) {
 
         // Process tool calls
         if (chunk.tool_calls && chunk.tool_calls.length > 0) {
+          // Tool calls separate reasoning segments the same way they separate content segments.
+          // Close out the current reasoning part in the parts builder (defensive - addOrUpdateTool
+          // also finalizes reasoning internally) and reset the flat-string accumulator so the
+          // next reasoning chunk starts a fresh segment.
+          partsBuilder.finalizeReasoning();
+          assistantMsg.reasoning = '';
+
           for (const tool of chunk.tool_calls) {
             const toolType = tool.type || 'function';
             partsBuilder.addOrUpdateTool(toolType, tool);
-            
+
             // Track tool calls
             if (tool.id && !currentToolCalls.find(tc => tc.id === tool.id)) {
               currentToolCalls.push({

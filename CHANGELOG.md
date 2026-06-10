@@ -13,6 +13,13 @@ All notable changes to Libre Assistant are documented here.
 
 ---
 
+## [1.3.1] - 2026-06-10
+
+### Fixed
+- Fixed reasoning traces not creating new parts after being broken up with tool calls
+
+---
+
 ## [1.3.0] - 2026-06-05
 
 ### Added
@@ -31,6 +38,7 @@ All notable changes to Libre Assistant are documented here.
 - Fixed the search API response not properly mapping some of the data, forcing the model to crawl webpages alongside search. This update should make search much faster, cheaper, and higher quality.
 - Fixed message copy button
 
+---
 
 ## [1.2.0] - 2026-04-30
 

@@ -145,6 +145,22 @@ describe("PartsBuilder", () => {
       expect(parts[1].type).toBe("tool_group");
     });
 
+    it("finalizes an open reasoning part before adding a tool", () => {
+      const pb = new PartsBuilder();
+      pb.appendReasoning("step 1");
+      pb.addOrUpdateTool("search", {
+        index: 0,
+        function: { name: "search", arguments: "{}" },
+      });
+
+      const parts = pb.getParts();
+      expect(parts).toHaveLength(2);
+      expect(parts[0].type).toBe("reasoning");
+      expect(parts[0]._finalized).toBe(true);
+      expect(parts[0].content).toBe("step 1");
+      expect(parts[1].type).toBe("tool_group");
+    });
+
     it("updates an existing tool when called with the same id", () => {
       const pb = new PartsBuilder();
       pb.addOrUpdateTool("search", {
@@ -179,6 +195,40 @@ describe("PartsBuilder", () => {
 
       const parts = pb.getParts();
       expect(parts.filter((p) => p.type === "tool_group")).toHaveLength(2);
+    });
+
+    it("creates separate reasoning parts for reasoning segments split by tool calls", () => {
+      // Regression: reasoning -> tool -> reasoning -> tool -> reasoning should
+      // produce three distinct reasoning parts (one per thinking block), not
+      // a single reasoning part containing all three segments concatenated.
+      const pb = new PartsBuilder();
+      pb.appendReasoning("step 1 ");
+      pb.addOrUpdateTool("search", {
+        index: 0,
+        id: "tool_1",
+        function: { name: "search", arguments: "{}" },
+      });
+      pb.appendReasoning("step 2 ");
+      pb.addOrUpdateTool("search", {
+        index: 1,
+        id: "tool_2",
+        function: { name: "search", arguments: "{}" },
+      });
+      pb.appendReasoning("step 3");
+
+      const parts = pb.getParts();
+      const reasoningParts = parts.filter((p) => p.type === "reasoning");
+      const toolParts = parts.filter((p) => p.type === "tool_group");
+
+      expect(toolParts).toHaveLength(2);
+      expect(reasoningParts).toHaveLength(3);
+      expect(reasoningParts[0].content).toBe("step 1 ");
+      expect(reasoningParts[1].content).toBe("step 2 ");
+      expect(reasoningParts[2].content).toBe("step 3");
+      // Earlier reasoning parts are finalized so they don't absorb later text
+      expect(reasoningParts[0]._finalized).toBe(true);
+      expect(reasoningParts[1]._finalized).toBe(true);
+      expect(reasoningParts[2]._finalized).toBe(false);
     });
   });
 

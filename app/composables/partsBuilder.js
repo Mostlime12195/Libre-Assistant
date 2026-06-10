@@ -149,10 +149,12 @@ export class PartsBuilder {
    * - Content before and after tools (e.g., content -> tool -> content)
    */
   addOrUpdateTool(toolType, toolData) {
-    // CRITICAL: Finalize any open content part before adding a tool
-    // This ensures content segments are properly separated by tool calls
+    // CRITICAL: Finalize any open content and reasoning parts before adding a tool
+    // This ensures content and reasoning segments are properly separated by tool calls
     // e.g., "reason -> search -> content -> crawl -> content" creates two separate content parts
+    // and "reason -> search -> reason -> crawl -> reason" creates three separate reasoning parts
     this.finalizeContent();
+    this.finalizeReasoning();
 
     const apiIndex = toolData.index;
     const toolId = toolData.id;
