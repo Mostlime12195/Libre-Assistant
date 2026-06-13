@@ -411,7 +411,7 @@ export async function* handleIncomingMessage(
 
     // Check if API is up and has available quota.
     // Cached for 60s to avoid adding latency to every send.
-    if (!isApiHealthyCached()) {
+    /*if (!isApiHealthyCached()) {
       try {
         const health = await fetchApiHealth();
         if (
@@ -441,7 +441,7 @@ export async function* handleIncomingMessage(
         // Continue anyway in case it was just the health check endpoint failing
         console.error("Health check failed:", error);
       }
-    }
+    }*/
 
     // Find the selected model info
     const selectedModelInfo = findModelById(availableModels, selectedModel);
