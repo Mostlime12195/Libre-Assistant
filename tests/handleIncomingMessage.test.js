@@ -5,14 +5,12 @@
  *   - Yields content chunks as they stream in
  *   - Yields reasoning chunks
  *   - Aborts surface a "STREAM CANCELED" yield
- *   - A "service down" health response yields the user-facing message
  *   - Missing required params are rejected immediately
  *   - Tool-call deltas are forwarded as tool_calls yields
  *
  * Approach:
  *   - vi.mock to stub upstream modules (systemPrompt, toolsManager, useSession)
- *   - vi.resetModules() in beforeEach so the module-level health cache
- *     starts cold for every test
+ *   - vi.resetModules() in beforeEach so imports are fresh for every test
  *   - Stub globalThis.fetch with a URL-based implementation
  *   - Drive the async generator and collect its yields
  */
@@ -70,24 +68,6 @@ function makeSseStream(chunks) {
   };
 }
 
-const HEALTH_OK = {
-  ok: true,
-  json: async () => ({
-    status: "ok",
-    dailyKeyUsageRemaining: 100,
-    balanceRemaining: 100,
-  }),
-};
-
-const HEALTH_DOWN = {
-  ok: true,
-  json: async () => ({
-    status: "down",
-    dailyKeyUsageRemaining: 0,
-    balanceRemaining: 0,
-  }),
-};
-
 const ABORT_ERROR = (() => {
   const e = new Error("aborted");
   e.name = "AbortError";
@@ -95,15 +75,13 @@ const ABORT_ERROR = (() => {
 })();
 
 /**
- * Install a fetch mock that routes by URL. `streamFn(callIndex)` returns
- * the SSE chunk array for each successive /api/ai call. The returned
- * value `"ABORT"` is a sentinel for an AbortError-throwing reader.
+ * Install a fetch mock. `streamFn(callIndex)` returns the SSE chunk array
+ * for each successive /api/ai call. The returned value `"ABORT"` is a
+ * sentinel for an AbortError-throwing reader.
  */
-function installRoutedFetch(streamFn, healthResponse = HEALTH_OK) {
+function installRoutedFetch(streamFn) {
   let streamCallIndex = 0;
-  globalThis.fetch = vi.fn(async (url) => {
-    const u = String(url);
-    if (u.includes("api_health")) return healthResponse;
+  globalThis.fetch = vi.fn(async () => {
     const chunks = streamFn(streamCallIndex++);
     if (chunks === "ABORT") {
       return {
@@ -191,19 +169,6 @@ describe("handleIncomingMessage", () => {
       .map((c) => c.reasoning);
     expect(reasoning.length).toBeGreaterThan(0);
     expect(incrementalContent(chunks)).toContain("answer");
-  });
-
-  it("surfaces a service-unavailable message when the health check is down", async () => {
-    installRoutedFetch(() => [], HEALTH_DOWN);
-
-    const { handleIncomingMessage } = await import("../app/composables/message.js");
-    const chunks = [];
-    for await (const c of handleIncomingMessage("q", [], new AbortController())) {
-      chunks.push(c);
-    }
-
-    expect(chunks).toHaveLength(1);
-    expect(chunks[0].content).toMatch(/unavailable/i);
   });
 
   it("yields a STREAM CANCELED message when the controller is aborted", async () => {

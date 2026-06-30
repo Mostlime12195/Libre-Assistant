@@ -13,6 +13,24 @@ All notable changes to Libre Assistant are documented here.
 
 ---
 
+## [1.4.0]
+
+### Added
+- **Context compression** — Long conversations are now automatically summarized in fixed chunks of user turns. Each summarized chunk is replaced by a near-lossless labeled summary when sending history to the API, while the original messages remain stored locally. A thin, non-interactive marker is shown in the chat between summarized and verbatim portions.
+- New "Context Compression" settings tab to configure the summarizer model, chunk size, minimum token threshold, and how many recent chunks stay verbatim.
+- Unit tests for context compression.
+
+### Changed
+- The system prompt now includes a "Context Compression" section so the active model understands labeled summaries in the conversation history.
+
+### Fixed
+- Fix reasoning toggle & reasoning effort list behaviour colliding for specific models
+
+### Removed
+- Removed buggy healthcheck system
+
+---
+
 ## [1.3.1] - 2026-06-10
 
 ### Fixed

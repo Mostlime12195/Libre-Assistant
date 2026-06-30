@@ -14,6 +14,8 @@ import {
   showReasoningToggle,
   showReasoningEffortSelector,
   getDefaultReasoningEffort,
+  getReasoningEffortOptions,
+  formatReasoningLabel,
   isReasoningEnabled,
   buildReasoningParams,
   supportsToolUse,
@@ -173,6 +175,73 @@ describe("getDefaultReasoningEffort", () => {
       getDefaultReasoningEffort({ reasoning: { supported: true } })
     ).toBe("default");
   });
+
+  it("returns 'none' for toggleable models with defaultEnabled: false", () => {
+    expect(
+      getDefaultReasoningEffort({
+        reasoning: { supported: true, toggleable: true, defaultEnabled: false, effort: { levels: ["low", "high"], default: "high" } },
+      })
+    ).toBe("none");
+  });
+
+  it("returns 'default' for toggleable models without effort config", () => {
+    expect(
+      getDefaultReasoningEffort({
+        reasoning: { supported: true, toggleable: true, defaultEnabled: true },
+      })
+    ).toBe("default");
+  });
+
+  it("returns 'none' for toggleable models without effort config and defaultEnabled: false", () => {
+    expect(
+      getDefaultReasoningEffort({
+        reasoning: { supported: true, toggleable: true, defaultEnabled: false },
+      })
+    ).toBe("none");
+  });
+});
+
+describe("getReasoningEffortOptions", () => {
+  it("returns effort levels for always-on models", () => {
+    expect(
+      getReasoningEffortOptions({
+        reasoning: { supported: true, toggleable: false, effort: { levels: ["low", "medium", "high"], default: "medium" } },
+      })
+    ).toEqual(["low", "medium", "high"]);
+  });
+
+  it("prepends 'none' for toggleable models with effort levels", () => {
+    expect(
+      getReasoningEffortOptions({
+        reasoning: { supported: true, toggleable: true, effort: { levels: ["low", "medium", "high"], default: "medium" } },
+      })
+    ).toEqual(["none", "low", "medium", "high"]);
+  });
+
+  it("returns an empty array for models without effort config", () => {
+    expect(
+      getReasoningEffortOptions({
+        reasoning: { supported: true, toggleable: true },
+      })
+    ).toEqual([]);
+  });
+});
+
+describe("formatReasoningLabel", () => {
+  it("formats known effort values", () => {
+    expect(formatReasoningLabel("none")).toBe("Off");
+    expect(formatReasoningLabel("default")).toBe("Default");
+    expect(formatReasoningLabel("low")).toBe("Low");
+    expect(formatReasoningLabel("medium")).toBe("Medium");
+    expect(formatReasoningLabel("high")).toBe("High");
+    expect(formatReasoningLabel("xhigh")).toBe("XHigh");
+  });
+
+  it("handles empty values", () => {
+    expect(formatReasoningLabel("")).toBe("");
+    expect(formatReasoningLabel(null)).toBe("");
+    expect(formatReasoningLabel(undefined)).toBe("");
+  });
 });
 
 describe("isReasoningEnabled", () => {
@@ -253,13 +322,47 @@ describe("buildReasoningParams", () => {
     });
   });
 
-  it("sends { enabled: true } for toggleable models (no alternateModel)", () => {
+  it("sends { enabled: true } for toggleable models (no alternateModel, no effort)", () => {
     const result = buildReasoningParams(
       { reasoning: { supported: true, toggleable: true, defaultEnabled: true } },
       { reasoning_effort: "medium" }
     );
     expect(result).toEqual({
       reasoningParams: { enabled: true },
+      alternateModel: null,
+    });
+  });
+
+  it("sends { enabled: true, effort } for toggleable models with effort config", () => {
+    const result = buildReasoningParams(
+      {
+        reasoning: {
+          supported: true,
+          toggleable: true,
+          effort: { levels: ["low", "medium", "high"], default: "medium" },
+        },
+      },
+      { reasoning_effort: "high" }
+    );
+    expect(result).toEqual({
+      reasoningParams: { enabled: true, effort: "high" },
+      alternateModel: null,
+    });
+  });
+
+  it("sends { enabled: false } for toggleable models with effort config when effort is 'none'", () => {
+    const result = buildReasoningParams(
+      {
+        reasoning: {
+          supported: true,
+          toggleable: true,
+          effort: { levels: ["low", "medium", "high"], default: "medium" },
+        },
+      },
+      { reasoning_effort: "none" }
+    );
+    expect(result).toEqual({
+      reasoningParams: { enabled: false },
       alternateModel: null,
     });
   });

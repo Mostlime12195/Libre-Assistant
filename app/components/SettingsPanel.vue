@@ -21,6 +21,13 @@ const gptOssLimitTables = ref(false);
 const notepadMetadata = ref(null);
 const isMac = ref(false);
 
+// Context compression settings
+const contextCompressionEnabled = ref(true);
+const contextCompressionModel = ref("deepseek/deepseek-v4-flash");
+const contextCompressionChunkSize = ref(10);
+const contextCompressionMinChunkTokens = ref(2000);
+const contextCompressionKeepRecentChunks = ref(1);
+
 // User profile fields
 const userName = ref("");
 const occupation = ref("");
@@ -48,6 +55,11 @@ const navItems = [
     icon: "material-symbols:book"
   },
   {
+    key: "contextCompression",
+    label: "Context Compression",
+    icon: "material-symbols:compress"
+  },
+  {
     key: "keybinds",
     label: "Keybinds",
     icon: "material-symbols:keyboard"
@@ -72,6 +84,13 @@ onMounted(async () => {
   notepadEnabled.value = settingsManager.settings.notepad_enabled === true;
   gptOssLimitTables.value = settingsManager.settings.gpt_oss_limit_tables === true;
   customApiKey.value = settingsManager.settings.custom_api_key || "";
+
+  // Load context compression settings
+  contextCompressionEnabled.value = settingsManager.settings.context_compression_enabled !== false;
+  contextCompressionModel.value = settingsManager.settings.context_compression_model || "deepseek/deepseek-v4-flash";
+  contextCompressionChunkSize.value = Number(settingsManager.settings.context_compression_chunk_size) || 10;
+  contextCompressionMinChunkTokens.value = Number(settingsManager.settings.context_compression_min_chunk_tokens) || 2000;
+  contextCompressionKeepRecentChunks.value = Number(settingsManager.settings.context_compression_keep_recent_chunks) || 1;
 
   // Load notepad metadata
   await loadNotepadData();
@@ -117,6 +136,13 @@ async function saveSettings() {
   settingsManager.setSetting("notepad_enabled", notepadEnabled.value);
   settingsManager.setSetting("gpt_oss_limit_tables", gptOssLimitTables.value);
   settingsManager.setSetting("custom_api_key", customApiKey.value.trim());
+
+  // Save context compression settings
+  settingsManager.setSetting("context_compression_enabled", contextCompressionEnabled.value);
+  settingsManager.setSetting("context_compression_model", contextCompressionModel.value.trim());
+  settingsManager.setSetting("context_compression_chunk_size", Math.max(2, Number(contextCompressionChunkSize.value) || 10));
+  settingsManager.setSetting("context_compression_min_chunk_tokens", Math.max(0, Number(contextCompressionMinChunkTokens.value) || 2000));
+  settingsManager.setSetting("context_compression_keep_recent_chunks", Math.max(1, Number(contextCompressionKeepRecentChunks.value) || 1));
 
   // Save settings and wait for completion before reloading
   await settingsManager.saveSettings();
@@ -320,6 +346,85 @@ function openNotepad() {
 
               <div v-else class="notepad-disabled-message">
                 <p>The Notepad is currently disabled. Enable it to let Libre document your chats.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Context Compression Tab -->
+          <div v-show="currTab === 'contextCompression'" class="settings-section">
+            <div class="settings-content">
+              <div class="content-header">
+                <h2>Context Compression</h2>
+                <p>
+                  Long conversations are automatically summarized in chunks so the model can keep
+                  going without running out of context. The original messages stay on your device;
+                  only a labeled summary is sent to the API.
+                </p>
+              </div>
+
+              <div class="setting-item">
+                <div class="setting-info">
+                  <h3>Enable Context Compression</h3>
+                  <p>Automatically summarize older messages in long conversations</p>
+                </div>
+                <div class="switch-container">
+                  <SwitchRoot class="switch-root" :modelValue="contextCompressionEnabled"
+                    @update:modelValue="contextCompressionEnabled = $event">
+                    <SwitchThumb class="switch-thumb" />
+                  </SwitchRoot>
+                </div>
+              </div>
+
+              <div class="setting-item textarea-item">
+                <div class="setting-info">
+                  <h3>Compression Model</h3>
+                  <p>The cheap model used to summarize chunks (must be available through OpenRouter)</p>
+                </div>
+                <div class="input-container">
+                  <input v-model="contextCompressionModel" type="text" placeholder="deepseek/deepseek-v4-flash"
+                    class="custom-input" />
+                </div>
+              </div>
+
+              <div class="setting-item">
+                <div class="setting-info">
+                  <h3>Chunk Size</h3>
+                  <p>Number of user turns per compressed chunk</p>
+                </div>
+                <div class="input-container number-input-container">
+                  <input v-model.number="contextCompressionChunkSize" type="number" min="2" max="100"
+                    class="custom-input number-input" />
+                </div>
+              </div>
+
+              <div class="setting-item">
+                <div class="setting-info">
+                  <h3>Minimum Chunk Tokens</h3>
+                  <p>Chunks smaller than this are left verbatim and rolled into the next chunk</p>
+                </div>
+                <div class="input-container number-input-container">
+                  <input v-model.number="contextCompressionMinChunkTokens" type="number" min="0" step="100"
+                    class="custom-input number-input" />
+                </div>
+              </div>
+
+              <div class="setting-item">
+                <div class="setting-info">
+                  <h3>Keep Recent Chunks</h3>
+                  <p>How many of the most recent chunks stay verbatim (default: last chunk only)</p>
+                </div>
+                <div class="input-container number-input-container">
+                  <input v-model.number="contextCompressionKeepRecentChunks" type="number" min="1" max="10"
+                    class="custom-input number-input" />
+                </div>
+              </div>
+
+              <div class="compression-info">
+                <p>
+                  Compression runs after each assistant reply, but only when a chunk has closed
+                  and its estimated tokens exceed the minimum. If you edit a message inside a
+                  summarized chunk, the summary is marked stale and rebuilt automatically.
+                </p>
               </div>
             </div>
           </div>
@@ -629,6 +734,30 @@ function openNotepad() {
 .input-container {
   width: 100%;
   max-width: 400px;
+}
+
+.number-input-container {
+  max-width: 120px;
+}
+
+.number-input {
+  text-align: right;
+}
+
+/* Context Compression info box */
+.compression-info {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.compression-info p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
 }
 
 .setting-item.textarea-item .input-container {

@@ -40,8 +40,6 @@
  * providers: ["provider-id"], // Optional - restricts model to specific OpenRouter provider(s)
  */
 
-import { lchown } from "node:fs";
-
 export const DEFAULT_MODEL_ID = "moonshotai/kimi-k2.6";
 
 /**
@@ -116,7 +114,50 @@ export function showReasoningEffortSelector(model) {
  */
 export function getDefaultReasoningEffort(model) {
   const config = normalizeReasoningConfig(model);
+
+  // Toggleable models start disabled when defaultEnabled is explicitly false
+  if (config.toggleable && config.defaultEnabled === false) {
+    return 'none';
+  }
+
+  // Toggleable models without an effort config default to the generic "on" state
+  if (config.toggleable && !config.effort) {
+    return 'default';
+  }
+
   return config.effort?.default || 'default';
+}
+
+/**
+ * Get the list of reasoning effort options that should appear in the UI.
+ * For toggleable models with effort levels, "none" (shown as "Off") is
+ * prepended so reasoning can be turned off from the same dropdown.
+ * @param {Object} model - The model object
+ * @returns {Array<string>} Effort options for the dropdown
+ */
+export function getReasoningEffortOptions(model) {
+  const config = normalizeReasoningConfig(model);
+  if (!config.supported || !config.effort || !Array.isArray(config.effort.levels)) {
+    return [];
+  }
+  const options = [...config.effort.levels];
+  if (config.toggleable) {
+    options.unshift('none');
+  }
+  return options;
+}
+
+/**
+ * Format a reasoning effort value for display in the UI.
+ * @param {string} value - The raw effort value
+ * @returns {string} Human-readable label
+ */
+export function formatReasoningLabel(value) {
+  if (value === 'none') return 'Off';
+  if (!value) return '';
+  if (value === 'default') return 'Default';
+  if (value === 'xhigh') return 'XHigh';
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 /**
@@ -150,25 +191,37 @@ export function buildReasoningParams(model, userSettings) {
     return { reasoningParams: null, alternateModel: null };
   }
   
-  const effort = userSettings?.reasoning_effort || config.effort?.default || 'default';
+  const effort = userSettings?.reasoning_effort ?? config.effort?.default ?? 'default';
   const isEnabled = effort !== 'none';
-  
+
   // Model routing: return alternate model when enabled
   if (config.alternateModel && isEnabled) {
-    return { 
+    return {
       reasoningParams: null,
-      alternateModel: config.alternateModel 
+      alternateModel: config.alternateModel
     };
   }
-  
-  // Toggleable: send enabled flag
+
+  // Toggleable: send enabled flag, and include effort when configured
   if (config.toggleable) {
+    if (!isEnabled) {
+      return {
+        reasoningParams: { enabled: false },
+        alternateModel: null
+      };
+    }
+    if (config.effort && effort !== 'default') {
+      return {
+        reasoningParams: { enabled: true, effort: effort },
+        alternateModel: null
+      };
+    }
     return {
-      reasoningParams: { enabled: isEnabled },
+      reasoningParams: { enabled: true },
       alternateModel: null
     };
   }
-  
+
   // Always-on + effort: only send effort, NOT enabled
   if (config.effort && effort !== 'default') {
     return {
@@ -176,7 +229,7 @@ export function buildReasoningParams(model, userSettings) {
       alternateModel: null
     };
   }
-  
+
   // Always-on without effort: send nothing (API handles automatically)
   return { reasoningParams: null, alternateModel: null };
 }
@@ -225,12 +278,12 @@ export const availableModels = [
     logo: "/ai_logos/anthropic.svg",
     models: [
       {
-        id: "anthropic/claude-fable-5",
-        name: "Claude Fable 5",
-        description: "State-of-the-art AI for incredibly complex, novel, or long-horizon tasks.",
+        id: "anthropic/claude-sonnet-5",
+        name: "Claude Sonnet 5",
+        description: "Strongest Anthropic Sonnet model for effecient agentic tasks.",
         reasoning: {
           supported: true,
-          toggleable: false,
+          toggleable: true,
           effort: {
             levels: ["low", "medium", "high", "xhigh"],
             default: "low",
@@ -456,9 +509,20 @@ export const availableModels = [
     logo: "/ai_logos/moonshot.svg",
     models: [
       {
+        id: "moonshotai/kimi-k2.7-code",
+        name: "Kimi K2.7 Code",
+        description: "Frontier open-weights coding model.",
+        vision: true,
+        providers: ["moonshotai/int4"],
+        reasoning: {
+          supported: true,
+          toggleable: false
+        },
+      },
+      {
         id: "moonshotai/kimi-k2.6",
         name: "Kimi K2.6",
-        description: "SOTA open-weights model with exceptional EQ, coding, and agentic abilities.",
+        description: "open-weights model with exceptional EQ, coding, and agentic abilities.",
         vision: true,
         providers: ["moonshotai/int4"],
         reasoning: {
@@ -729,9 +793,19 @@ export const availableModels = [
     logo: "/ai_logos/zai.svg",
     models: [
       {
+        id: "z-ai/glm-5.2",
+        name: "GLM 5.2",
+        description: "Frontier open-weight model excelling at coding and math",
+        reasoning: {
+          supported: true,
+          toggleable: true,
+          defaultEnabled: true
+        },
+      },
+      {
         id: "z-ai/glm-5.1",
         name: "GLM 5.1",
-        description: "Frontier open-weight model excelling at coding and math",
+        description: "Strong open-weight model excelling at coding and math",
         reasoning: {
           supported: true,
           toggleable: true,

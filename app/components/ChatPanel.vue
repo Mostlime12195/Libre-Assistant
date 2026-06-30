@@ -5,6 +5,7 @@ import { md } from '../utils/markdown';
 import { copyCode, downloadCode } from '../utils/codeBlockUtils';
 import StreamingMessage from './StreamingMessage.vue';
 import ChatWidget from './ChatWidget.vue';
+import ContextSummaryMarker from './ContextSummaryMarker.vue';
 import { getFormattedStatsFromExecutedTools } from '../composables/searchViewStats';
 import { highlightAllBlocks } from '../utils/lazyHighlight';
 
@@ -603,7 +604,14 @@ defineExpose({ scrollToEnd, isAtBottom, chatWrapper });
       </div>
       <div class="messages-layer">
         <template v-for="message in messages" :key="message.id">
-          <div class="message" :class="message.role" :data-message-id="message.id">
+          <!-- Non-interactive context-compression marker. -->
+          <ContextSummaryMarker
+            v-if="message.role === 'context_summary'"
+            :status="message.status"
+            :range-start="message.rangeStart"
+            :range-end="message.rangeEnd"
+          />
+          <div v-else class="message" :class="message.role" :data-message-id="message.id">
             <div class="message-content">
                   <!-- New Parts-Based Rendering -->
                   <div v-if="message.parts && message.parts.length > 0" class="message-parts-container">

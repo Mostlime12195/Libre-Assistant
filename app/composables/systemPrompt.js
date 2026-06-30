@@ -62,6 +62,15 @@ const SEARCH_TOOLS_AWARENESS = `### Web Search and Page Crawling
 *   Workflow: First use search to find relevant pages and skim their highlights, then use getPageContents on the most promising URLs to get detailed information.
 *   Additionally, the web crawl tool can be used in interesting ways to provide extra information, such as reading PDFs or specific pages.`;
 
+const CONTEXT_COMPRESSION_AWARENESS = `### Context Compression
+Earlier portions of this conversation may have been compressed into labeled summaries. Each summary looks like:
+
+  --- Context summary: messages N–M ---
+  <text>
+  --- end summary ---
+
+Treat these summaries as the authoritative continuation of the conversation. The labels tell you which range of messages each one covers; later messages (which you will see in full) follow the most recent summary. If anything is ambiguous, prefer the most recent verbatim content over the summary.`;
+
 const NOTEPAD_AWARENESS = `### Notepad Awareness
 *   You maintain a private Notepad about the user — a working document that helps you remember them across conversations.
 *   The Notepad appears above as "My Notepad" and contains your ongoing observations about:
@@ -176,6 +185,12 @@ export async function generateSystemPrompt(
   // Add notepad awareness if enabled and not in incognito mode
   if (notepadOn && !isIncognito) {
     promptSections.push(NOTEPAD_AWARENESS);
+  }
+
+  // Always tell the model about the context-compression system, so
+  // it can recognize labeled summaries in the history.
+  if (!isIncognito) {
+    promptSections.push(CONTEXT_COMPRESSION_AWARENESS);
   }
 
   // **Tools Section (Conditional)**

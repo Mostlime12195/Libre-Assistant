@@ -9,6 +9,8 @@ import { useSettings } from './useSettings';
 import { useGlobalIncognito } from './useGlobalIncognito';
 import { emitter } from './emitter';
 import { PartsBuilder, TimingTracker } from './partsBuilder';
+import { transformHistoryForAPI } from './contextCompressor';
+import { triggerContextCompression } from './contextCompressionPipeline';
 import {
   getMessagesForBranchPath,
   createBranch,
@@ -266,7 +268,7 @@ export function useMessagesManager(chatPanel) {
     try {
       // Build conversation history for the API
       // Tool results are now stored in assistant message parts, not as separate messages
-      const historyForAPI = visibleMessages.value.filter(msg => {
+      const rawHistory = visibleMessages.value.filter(msg => {
         if (!msg.complete) return false;
         if (msg.role === 'tool') return false; // Skip tool messages - they're in assistant parts
         if (msg.role === 'user') {
@@ -275,6 +277,13 @@ export function useMessagesManager(chatPanel) {
         }
         return true;
       });
+
+      // Apply context compression: replace summarized chunks with
+      // labeled summary messages. Skipped in incognito mode (where
+      // we never wrote markers in the first place).
+      const historyForAPI = isIncognito.value
+        ? rawHistory
+        : transformHistoryForAPI(rawHistory);
 
       const streamGenerator = handleIncomingMessage(
         message,
@@ -455,6 +464,26 @@ export function useMessagesManager(chatPanel) {
       // Store messages if not in incognito mode
       if (!isIncognito.value) {
         await storeMessages(currConvo.value, toRaw(messages.value), new Date());
+
+        // Fire-and-forget: kick off context compression in the
+        // background. Never awaited — the chat is already done.
+        const snapshot = toRaw(messages.value).slice();
+        const convoId = currConvo.value;
+        const pathSnapshot = branchPath.value.slice();
+        const settingsSnapshot = settingsManager.settings;
+        triggerContextCompression({
+          conversationId: convoId,
+          messages: snapshot,
+          branchPath: pathSnapshot,
+          settings: settingsSnapshot,
+          apiKey: settingsSnapshot.custom_api_key,
+          controllers: {
+            updateMessages: (next) => { messages.value = next; },
+            persist: (next) => storeMessages(convoId, toRaw(next), new Date()),
+          },
+        }).catch((error) => {
+          console.error("[messagesManager] compression trigger failed:", error);
+        });
       }
     }
   }

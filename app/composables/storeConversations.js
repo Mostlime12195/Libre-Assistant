@@ -4,6 +4,7 @@ import { migrateMessages } from "./branchManager";
 import { getSessionToken } from "~/composables/useSession";
 import { useSettings } from "~/composables/useSettings";
 import { deleteChatSummary } from "./chatSummarizer";
+import { deleteContextSummary } from "./contextCompressor";
 
 /**
  * Serializes a message object for storage, removing Vue reactivity proxies
@@ -202,6 +203,9 @@ export async function deleteConversation(conversationId) {
 
   // Delete the chat summary for this conversation
   await deleteChatSummary(conversationId);
+
+  // Delete the context-compression sidecar for this conversation
+  await deleteContextSummary(conversationId);
 
   // Update metadata by filtering out the deleted conversation.
   const metadata = (await localforage.getItem("conversations_metadata")) || [];

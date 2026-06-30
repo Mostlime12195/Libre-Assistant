@@ -20,6 +20,8 @@ import {
   showReasoningToggle,
   showReasoningEffortSelector,
   getDefaultReasoningEffort,
+  getReasoningEffortOptions,
+  formatReasoningLabel,
   isReasoningEnabled as checkReasoningEnabled,
   normalizeReasoningConfig,
   supportsToolUse,
@@ -131,9 +133,8 @@ const shouldShowEffortSelector = computed(() => {
 
 // Computed property to get reasoning effort options for the current model
 const reasoningEffortOptions = computed(() => {
-  if (!selectedModel.value || !shouldShowEffortSelector.value) return [];
-  const config = normalizeReasoningConfig(selectedModel.value);
-  return config.effort?.levels || [];
+  if (!selectedModel.value) return [];
+  return getReasoningEffortOptions(selectedModel.value);
 });
 
 // Computed property to get the default reasoning effort for the current model
@@ -327,19 +328,19 @@ function setMessage(text) {
 
 
 /**
- * Toggles the reasoning state and updates the settings
+ * Toggles the reasoning state and updates the settings.
+ * For models with an effort selector, cycles through the available options
+ * (including "none" / Off when the model is toggleable). For simple toggleable
+ * models, switches between the generic on state ("default") and off ("none").
  */
 function toggleReasoning() {
-  if (shouldShowReasoningToggle.value) {
-    // For models with reasoning toggle, toggle between "default" and "none"
-    reasoningEffort.value = reasoningEffort.value === "default" ? "none" : "default";
-  } else if (shouldShowEffortSelector.value) {
+  if (shouldShowEffortSelector.value) {
     // For models with reasoning effort options, cycle through them
     const currentIndex = reasoningEffortOptions.value.indexOf(reasoningEffort.value);
     const nextIndex = (currentIndex + 1) % reasoningEffortOptions.value.length;
     reasoningEffort.value = reasoningEffortOptions.value[nextIndex];
   } else {
-    // For other reasoning-enabled models, we'll just toggle between default and none
+    // For simple toggleable models, toggle between on ("default") and off ("none")
     reasoningEffort.value = reasoningEffort.value === "default" ? "none" : "default";
   }
 
@@ -637,9 +638,9 @@ defineExpose({ setMessage, toggleReasoning, setReasoningEffort, toggleSearch, $e
               />
             </button>
 
-            <!-- Mobile: Reasoning toggle (simple on/off) -->
-            <button 
-              v-if="isMobile && selectedModel && shouldShowReasoningToggle && supportsReasoning"
+            <!-- Mobile: Reasoning toggle (simple on/off) for toggleable models without effort levels -->
+            <button
+              v-if="isMobile && selectedModel && shouldShowReasoningToggle && !shouldShowEffortSelector && supportsReasoning"
               type="button"
               class="popover-toggle-item"
               :class="{ 'toggle-enabled': isReasoningEnabled }"
@@ -647,47 +648,48 @@ defineExpose({ setMessage, toggleReasoning, setReasoningEffort, toggleSearch, $e
             >
               <Icon icon="tabler:brain" width="20" height="20" />
               <span class="toggle-label">Reasoning</span>
-              <Icon 
-                v-if="isReasoningEnabled" 
-                icon="material-symbols:check" 
-                width="18" 
-                height="18" 
+              <Icon
+                v-if="isReasoningEnabled"
+                icon="material-symbols:check"
+                width="18"
+                height="18"
                 class="toggle-status"
               />
             </button>
 
             <!-- Mobile: Reasoning effort submenu (for models with effort options) -->
+            <!-- When the model is also toggleable, "Off" (none) is included as the first option. -->
             <DropdownMenuRoot v-if="isMobile && selectedModel && shouldShowEffortSelector">
               <DropdownMenuTrigger class="popover-toggle-item reasoning-submenu-trigger">
                 <Icon icon="tabler:brain" width="20" height="20" />
-                <span class="toggle-label">{{ reasoningEffort.charAt(0).toUpperCase() + reasoningEffort.slice(1) }}</span>
+                <span class="toggle-label">{{ formatReasoningLabel(reasoningEffort) }}</span>
                 <Icon icon="material-symbols:chevron-right" width="18" height="18" class="submenu-arrow" />
               </DropdownMenuTrigger>
 
               <DropdownMenuContent class="popover-dropdown reasoning-effort-dropdown" side="right" align="start"
                 :side-offset="8">
                 <div class="dropdown-scroll-container">
-                  <DropdownMenuItem 
-                    v-for="option in reasoningEffortOptions" 
-                    :key="option" 
+                  <DropdownMenuItem
+                    v-for="option in reasoningEffortOptions"
+                    :key="option"
                     class="reasoning-effort-item"
-                    :class="{ selected: option === reasoningEffort }" 
+                    :class="{ selected: option === reasoningEffort }"
                     @click="() => setReasoningEffort(option)"
                   >
-                    <span>{{ option.charAt(0).toUpperCase() + option.slice(1) }}</span>
-                    <Icon 
-                      v-if="option === reasoningEffort" 
-                      icon="material-symbols:check" 
-                      width="16" 
-                      height="16" 
+                    <span>{{ formatReasoningLabel(option) }}</span>
+                    <Icon
+                      v-if="option === reasoningEffort"
+                      icon="material-symbols:check"
+                      width="16"
+                      height="16"
                     />
                   </DropdownMenuItem>
                 </div>
               </DropdownMenuContent>
             </DropdownMenuRoot>
 
-            <!-- Divider (mobile only, when there are toggles) -->
-            <div v-if="isMobile && (supportsReasoning || shouldShowEffortSelector)" class="popover-divider"></div>
+            <!-- Divider (mobile only, when there are reasoning controls) -->
+            <div v-if="isMobile && supportsReasoning" class="popover-divider"></div>
 
             <!-- Attach media button (both mobile and desktop) -->
             <button
@@ -711,8 +713,8 @@ defineExpose({ setMessage, toggleReasoning, setReasoningEffort, toggleSearch, $e
           <span class="search-label">Search</span>
         </button>
 
-        <!-- Desktop: Reasoning toggle for models that should show a reasoning toggle -->
-        <button v-if="!isMobile && selectedModel && shouldShowReasoningToggle && supportsReasoning"
+        <!-- Desktop: Reasoning toggle for models that are toggleable but have no effort levels -->
+        <button v-if="!isMobile && selectedModel && shouldShowReasoningToggle && !shouldShowEffortSelector && supportsReasoning"
           type="button" class="feature-button reasoning-toggle-btn"
           :class="{ 'reasoning-enabled': isReasoningEnabled }" @click="toggleReasoning"
           :aria-label="isReasoningEnabled ? 'Disable reasoning' : 'Enable reasoning'">
@@ -721,10 +723,11 @@ defineExpose({ setMessage, toggleReasoning, setReasoningEffort, toggleSearch, $e
         </button>
 
         <!-- Desktop: Reasoning effort dropdown for models that support reasoning effort -->
+        <!-- When the model is also toggleable, "Off" (none) is included as the first option. -->
         <DropdownMenuRoot v-if="!isMobile && selectedModel && shouldShowEffortSelector">
           <DropdownMenuTrigger class="feature-button reasoning-toggle-btn">
             <Icon icon="material-symbols:lightbulb" width="22" height="22" />
-            <span>{{ reasoningEffort.charAt(0).toUpperCase() + reasoningEffort.slice(1) }}</span>
+            <span>{{ formatReasoningLabel(reasoningEffort) }}</span>
           </DropdownMenuTrigger>
 
           <DropdownMenuContent class="popover-dropdown reasoning-effort-dropdown" side="top" align="center"
@@ -732,7 +735,7 @@ defineExpose({ setMessage, toggleReasoning, setReasoningEffort, toggleSearch, $e
             <div class="dropdown-scroll-container">
               <DropdownMenuItem v-for="option in reasoningEffortOptions" :key="option" class="reasoning-effort-item"
                 :class="{ selected: option === reasoningEffort }" @click="() => setReasoningEffort(option)">
-                <span>{{ option.charAt(0).toUpperCase() + option.slice(1) }}</span>
+                <span>{{ formatReasoningLabel(option) }}</span>
               </DropdownMenuItem>
             </div>
           </DropdownMenuContent>

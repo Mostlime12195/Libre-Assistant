@@ -14,7 +14,7 @@ class Settings {
     // Use a reactive reference for settings to improve reactivity
     const settings = reactive({
       // Version marker for future migrations
-      version: 3,
+      version: 4,
 
       // --- User Profile Settings ---
       user_name: null, // User's name
@@ -23,6 +23,13 @@ class Settings {
 
       // --- Memory Settings ---
       notepad_enabled: false, // Whether the Notepad memory system is enabled
+
+      // --- Context Compression Settings ---
+      context_compression_enabled: true, // Master toggle for per-chunk context compression
+      context_compression_model: "deepseek/deepseek-v4-flash", // Cheap summarizer model
+      context_compression_chunk_size: 10, // User turns per chunk
+      context_compression_min_chunk_tokens: 2000, // Skip compression of trivial chunks
+      context_compression_keep_recent_chunks: 1, // How many most-recent chunks stay verbatim
 
       // --- Model Settings ---
       selected_model_id: DEFAULT_MODEL_ID, // Default model ID
@@ -48,8 +55,13 @@ class Settings {
 
     // Create a non-reactive copy of default settings to avoid circular references
     this.defaultSettings = {
-      version: 3,
+      version: 4,
       notepad_enabled: false, // Whether the Notepad memory system is enabled
+      context_compression_enabled: true, // Master toggle for per-chunk context compression
+      context_compression_model: "deepseek/deepseek-v4-flash", // Cheap summarizer model
+      context_compression_chunk_size: 10, // User turns per chunk
+      context_compression_min_chunk_tokens: 2000, // Skip compression of trivial chunks
+      context_compression_keep_recent_chunks: 1, // How many most-recent chunks stay verbatim
       selected_model_id: DEFAULT_MODEL_ID, // Default model ID
       search_enabled: false, // Default value for search setting
       model_settings: {}, // Default value for model settings
@@ -130,6 +142,10 @@ class Settings {
           mergedSettings.notepad_enabled = !!mergedSettings.notebook_memory_enabled;
         }
         delete mergedSettings.notebook_memory_enabled;
+
+        // Migration: v3 → v4 — context compression settings were added.
+        // The deep merge above already applies the new defaults, so no
+        // explicit data transformation is needed (no-op migration).
 
         // Migration: If search_enabled is true and grounding parameter doesn't exist yet,
         // set grounding to true to preserve user's previous search preference
