@@ -278,6 +278,20 @@ export const availableModels = [
     logo: "/ai_logos/anthropic.svg",
     models: [
       {
+        id: "anthropic/claude-fable-5",
+        name: "Claude Fable 5",
+        description: "State-of-the-art Anthropic Sonnet model for compelx reasoning and agentic tasks.",
+        reasoning: {
+          supported: true,
+          toggleable: true,
+          effort: {
+            levels: ["low", "medium", "high", "xhigh"],
+            default: "low",
+          },
+        },
+        vision: true,
+      },
+      {
         id: "anthropic/claude-sonnet-5",
         name: "Claude Sonnet 5",
         description: "Strongest Anthropic Sonnet model for effecient agentic tasks.",
