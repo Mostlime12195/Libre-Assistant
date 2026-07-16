@@ -523,6 +523,16 @@ export const availableModels = [
     logo: "/ai_logos/moonshot.svg",
     models: [
       {
+        id: "moonshotai/kimi-k3",
+        name: "Kimi K3",
+        description: "SOTA open-weights model.",
+        vision: true,
+        reasoning: {
+          supported: true,
+          toggleable: false
+        },
+      },
+      {
         id: "moonshotai/kimi-k2.7-code",
         name: "Kimi K2.7 Code",
         description: "Frontier open-weights coding model.",

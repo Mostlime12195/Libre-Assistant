@@ -25,7 +25,7 @@ class Settings {
       notepad_enabled: false, // Whether the Notepad memory system is enabled
 
       // --- Context Compression Settings ---
-      context_compression_enabled: true, // Master toggle for per-chunk context compression
+      context_compression_enabled: false, // Master toggle for per-chunk context compression
       context_compression_model: "deepseek/deepseek-v4-flash", // Cheap summarizer model
       context_compression_chunk_size: 10, // User turns per chunk
       context_compression_min_chunk_tokens: 2000, // Skip compression of trivial chunks
