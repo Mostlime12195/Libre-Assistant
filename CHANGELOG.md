@@ -13,7 +13,16 @@ All notable changes to Libre Assistant are documented here.
 
 ---
 
-## [1.5.0]
+## [1.6.0] - 2026-07-18
+
+### Added
+- **Import/Export system** — Back up and restore your chats, notepad, and settings as a versioned zip archive. Native exports preserve branching conversations, reasoning, tool calls, and inline attachments. Settings can be exported with or without the API key, and imports support Skip/Replace/Append modes for chats plus Skip/Replace for notepad and settings.
+- **Per-chat export** — Export a single conversation from the top-bar download button into a self-contained `chat-<id>.zip` archive.
+- **OpenWebUI import support** — Import OpenWebUI chat JSON exports into Libre Assistant's native branched format.
+
+---
+
+## [1.5.0] - 2026-07-18
 
 ### Added
 - Manual context compression added, allowing you to choose when to compress context
@@ -27,7 +36,7 @@ All notable changes to Libre Assistant are documented here.
 
 ---
 
-## [1.4.0]
+## [1.4.0] - 2026-06-30
 
 ### Added
 - **Context compression** — Long conversations are now automatically summarized in fixed chunks of user turns. Each summarized chunk is replaced by a near-lossless labeled summary when sending history to the API, while the original messages remain stored locally. A thin, non-interactive marker is shown in the chat between summarized and verbatim portions.

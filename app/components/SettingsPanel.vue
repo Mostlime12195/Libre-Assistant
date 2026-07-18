@@ -11,6 +11,8 @@ import {
   DEFAULT_THRESHOLD_TOKENS,
   DEFAULT_KEEP_RECENT_TOKENS,
 } from "@/composables/contextCompressor";
+import ExportMenu from "@/components/ExportMenu.vue";
+import ImportMenu from "@/components/ImportMenu.vue";
 
 // Define props and emits
 const props = defineProps(["isOpen", "initialTab"]);
@@ -31,6 +33,10 @@ const contextCompressionEnabled = ref(true);
 const contextCompressionModel = ref(DEFAULT_COMPRESSION_MODEL);
 const contextCompressionThresholdTokens = ref(DEFAULT_THRESHOLD_TOKENS);
 const contextCompressionKeepRecentTokens = ref(DEFAULT_KEEP_RECENT_TOKENS);
+
+// Data menu toggles
+const isExportMenuOpen = ref(false);
+const isImportMenuOpen = ref(false);
 
 // User profile fields
 const userName = ref("");
@@ -62,6 +68,11 @@ const navItems = [
     key: "contextCompression",
     label: "Auto Context Compression",
     icon: "material-symbols:compress"
+  },
+  {
+    key: "data",
+    label: "Data",
+    icon: "material-symbols:database"
   },
   {
     key: "keybinds",
@@ -422,6 +433,38 @@ function openNotepad() {
             </div>
           </div>
 
+          <!-- Data Tab -->
+          <div v-show="currTab === 'data'" class="settings-section">
+            <div class="settings-content">
+              <div class="content-header">
+                <h2>Data</h2>
+                <p>Back up or restore your conversations, notepad, and settings.</p>
+              </div>
+
+              <div class="setting-item data-row">
+                <div class="setting-info">
+                  <h3>Export your data</h3>
+                  <p>Download a zip archive of your chats, notepad, and settings.</p>
+                </div>
+                <button class="data-action-btn" @click="isExportMenuOpen = true">
+                  <Icon icon="material-symbols:download" width="18" height="18" />
+                  Export
+                </button>
+              </div>
+
+              <div class="setting-item data-row">
+                <div class="setting-info">
+                  <h3>Import data</h3>
+                  <p>Restore from a Libre Assistant export or an OpenWebUI chat export.</p>
+                </div>
+                <button class="data-action-btn" @click="isImportMenuOpen = true">
+                  <Icon icon="material-symbols:upload" width="18" height="18" />
+                  Import
+                </button>
+              </div>
+            </div>
+          </div>
+
           <!-- Keybinds Tab -->
           <div v-show="currTab === 'keybinds'" class="settings-section">
             <div class="settings-content">
@@ -537,6 +580,9 @@ function openNotepad() {
       </div>
     </div>
   </div>
+
+  <ExportMenu :is-open="isExportMenuOpen" @close="isExportMenuOpen = false" />
+  <ImportMenu :is-open="isImportMenuOpen" @close="isImportMenuOpen = false" @import-complete="$emit('reload-settings')" />
 </template>
 
 <style scoped>
@@ -751,6 +797,34 @@ function openNotepad() {
   font-size: 0.875rem;
   color: var(--text-secondary);
   line-height: 1.5;
+}
+
+/* Data tab action buttons */
+.data-row {
+  align-items: center;
+}
+
+.data-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 1rem;
+  height: 36px;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.data-action-btn:hover {
+  background: var(--btn-hover);
+  border-color: var(--primary-a4);
+  color: var(--primary);
 }
 
 .setting-item.textarea-item .input-container {

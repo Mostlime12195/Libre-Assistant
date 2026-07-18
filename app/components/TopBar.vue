@@ -78,6 +78,10 @@
         <span class="incognito-text">{{ isIncognitoRoute ? 'Incognito Mode' : 'Incognito mode' }}</span>
       </div>
       <div class="action-toggles">
+        <button v-if="canExport" class="action-toggle export-chat-toggle"
+          @click="$emit('export-chat')" aria-label="Export this chat">
+          <Icon icon="material-symbols:download" width="20" height="20" />
+        </button>
         <button v-if="showIncognitoButton && !isIncognitoRoute" class="action-toggle incognito-toggle" :class="{ active: isIncognito }"
           @click="$emit('toggle-incognito')"
           :aria-label="isIncognito ? 'Disable incognito mode' : 'Enable incognito mode'">
@@ -147,10 +151,18 @@ const props = defineProps({
   parameterConfigOpen: {
     type: Boolean,
     default: false
+  },
+  conversationId: {
+    type: String,
+    default: "",
+  },
+  canExport: {
+    type: Boolean,
+    default: false,
   }
 });
 
-const emit = defineEmits(['model-selected', 'toggle-incognito', 'toggle-parameter-config']);
+const emit = defineEmits(['model-selected', 'toggle-incognito', 'toggle-parameter-config', 'export-chat']);
 
 // Get the current route
 const route = useRoute();
@@ -287,6 +299,10 @@ watch(() => [props.sidebarOpen, props.isIncognito], () => {
 }
 
 .category-item :deep(svg) {
+  color: var(--text-primary);
+}
+
+.export-chat-toggle :deep(svg) {
   color: var(--text-primary);
 }
 

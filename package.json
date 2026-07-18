@@ -23,6 +23,7 @@
     "@vercel/analytics": "^1.5.0",
     "@vercel/speed-insights": "^1.2.0",
     "animejs": "^4.2.2",
+    "fflate": "^0.8.3",
     "highlight.js": "^11.11.1",
     "isbot": "^5.1.39",
     "katex": "^0.16.25",

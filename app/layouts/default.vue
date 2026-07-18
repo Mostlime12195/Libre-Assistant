@@ -21,9 +21,11 @@
       <TopBar :is-scrolled-top="isScrolledTop" :selected-model-name="selectedModelName"
         :selected-model-id="selectedModelId" :toggle-sidebar="toggleSidebar" :sidebar-open="sidebarOpen"
         :is-incognito="isIncognito" :show-incognito-button="!route.params.id && messages.length === 0" :messages="messages"
-        :parameter-config-open="parameterConfigPanelOpen" @model-selected="handleModelSelect"
+        :parameter-config-open="parameterConfigPanelOpen" :conversation-id="route.params.id"
+        :can-export="canExport" @model-selected="handleModelSelect"
         @toggle-incognito="toggleIncognito"
-        @toggle-parameter-config="parameterConfigPanelOpen = !parameterConfigPanelOpen" />
+        @toggle-parameter-config="parameterConfigPanelOpen = !parameterConfigPanelOpen"
+        @export-chat="handleExportChat" />
 
       <!-- Chat panel from the current page -->
       <slot />
@@ -66,6 +68,11 @@ import AppSidebar from '~/components/AppSidebar.vue'
 import SettingsPanel from '~/components/SettingsPanel.vue'
 import ParameterConfigPanel from '~/components/ParameterConfigPanel.vue'
 import TopBar from '~/components/TopBar.vue'
+import {
+  exportSingleChatToZip,
+  triggerDownload,
+  generateSingleChatExportFilename,
+} from '~/composables/importExport';
 
 // Inject Vercel's analytics and performance insights
 inject();
@@ -130,6 +137,9 @@ const currConvo = ref(route.params.id || ''); // Current conversation ID
 const conversationTitle = ref(''); // Current conversation title
 const isTyping = ref(false); // Typing state
 
+// Show the per-chat export button only when viewing a specific chat
+const canExport = computed(() => !!route.params.id && route.path !== '/incognito');
+
 // Use the global scroll status instead of local state
 const isScrolledTop = computed(() => getIsScrolledTop.value); // Track if chat is scrolled to the top
 
@@ -171,6 +181,18 @@ function handleDeleteConversation(id) {
 
 function handleNewConversation() {
   router.push('/');
+}
+
+async function handleExportChat() {
+  const id = route.params.id;
+  if (!id || typeof id !== 'string') return;
+  try {
+    const blob = await exportSingleChatToZip(id);
+    const filename = generateSingleChatExportFilename(id);
+    triggerDownload(blob, filename);
+  } catch (error) {
+    console.error('[layout] Failed to export chat:', error);
+  }
 }
 
 /**
