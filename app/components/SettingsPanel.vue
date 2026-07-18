@@ -6,6 +6,11 @@ import { useDark, useToggle } from "@vueuse/core";
 import { SwitchRoot, SwitchThumb } from "reka-ui";
 import { Icon } from "@iconify/vue";
 import { loadNotepad } from "@/composables/notepad";
+import {
+  DEFAULT_COMPRESSION_MODEL,
+  DEFAULT_THRESHOLD_TOKENS,
+  DEFAULT_KEEP_RECENT_TOKENS,
+} from "@/composables/contextCompressor";
 
 // Define props and emits
 const props = defineProps(["isOpen", "initialTab"]);
@@ -23,10 +28,9 @@ const isMac = ref(false);
 
 // Context compression settings
 const contextCompressionEnabled = ref(true);
-const contextCompressionModel = ref("deepseek/deepseek-v4-flash");
-const contextCompressionChunkSize = ref(10);
-const contextCompressionMinChunkTokens = ref(2000);
-const contextCompressionKeepRecentChunks = ref(1);
+const contextCompressionModel = ref(DEFAULT_COMPRESSION_MODEL);
+const contextCompressionThresholdTokens = ref(DEFAULT_THRESHOLD_TOKENS);
+const contextCompressionKeepRecentTokens = ref(DEFAULT_KEEP_RECENT_TOKENS);
 
 // User profile fields
 const userName = ref("");
@@ -56,7 +60,7 @@ const navItems = [
   },
   {
     key: "contextCompression",
-    label: "Context Compression",
+    label: "Auto Context Compression",
     icon: "material-symbols:compress"
   },
   {
@@ -87,10 +91,9 @@ onMounted(async () => {
 
   // Load context compression settings
   contextCompressionEnabled.value = settingsManager.settings.context_compression_enabled !== false;
-  contextCompressionModel.value = settingsManager.settings.context_compression_model || "deepseek/deepseek-v4-flash";
-  contextCompressionChunkSize.value = Number(settingsManager.settings.context_compression_chunk_size) || 10;
-  contextCompressionMinChunkTokens.value = Number(settingsManager.settings.context_compression_min_chunk_tokens) || 2000;
-  contextCompressionKeepRecentChunks.value = Number(settingsManager.settings.context_compression_keep_recent_chunks) || 1;
+  contextCompressionModel.value = settingsManager.settings.context_compression_model || DEFAULT_COMPRESSION_MODEL;
+  contextCompressionThresholdTokens.value = Number(settingsManager.settings.context_compression_threshold_tokens) || DEFAULT_THRESHOLD_TOKENS;
+  contextCompressionKeepRecentTokens.value = Number(settingsManager.settings.context_compression_keep_recent_tokens) || DEFAULT_KEEP_RECENT_TOKENS;
 
   // Load notepad metadata
   await loadNotepadData();
@@ -140,9 +143,8 @@ async function saveSettings() {
   // Save context compression settings
   settingsManager.setSetting("context_compression_enabled", contextCompressionEnabled.value);
   settingsManager.setSetting("context_compression_model", contextCompressionModel.value.trim());
-  settingsManager.setSetting("context_compression_chunk_size", Math.max(2, Number(contextCompressionChunkSize.value) || 10));
-  settingsManager.setSetting("context_compression_min_chunk_tokens", Math.max(0, Number(contextCompressionMinChunkTokens.value) || 2000));
-  settingsManager.setSetting("context_compression_keep_recent_chunks", Math.max(1, Number(contextCompressionKeepRecentChunks.value) || 1));
+  settingsManager.setSetting("context_compression_threshold_tokens", Math.max(4000, Number(contextCompressionThresholdTokens.value) || DEFAULT_THRESHOLD_TOKENS));
+  settingsManager.setSetting("context_compression_keep_recent_tokens", Math.max(1000, Number(contextCompressionKeepRecentTokens.value) || DEFAULT_KEEP_RECENT_TOKENS));
 
   // Save settings and wait for completion before reloading
   await settingsManager.saveSettings();
@@ -354,18 +356,18 @@ function openNotepad() {
           <div v-show="currTab === 'contextCompression'" class="settings-section">
             <div class="settings-content">
               <div class="content-header">
-                <h2>Context Compression</h2>
+                <h2>Auto Context Compression</h2>
                 <p>
-                  Long conversations are automatically summarized in chunks so the model can keep
-                  going without running out of context. The original messages stay on your device;
-                  only a labeled summary is sent to the API.
+                  Long conversations can be compressed so the model keeps going without running
+                  out of context: older messages are summarized, and only the summary is sent to
+                  the API. The original messages always stay on your device, untouched.
                 </p>
               </div>
 
               <div class="setting-item">
                 <div class="setting-info">
-                  <h3>Enable Context Compression</h3>
-                  <p>Automatically summarize older messages in long conversations</p>
+                  <h3>Auto Context Compression</h3>
+                  <p>Automatically compress older context once a conversation grows past the threshold</p>
                 </div>
                 <div class="switch-container">
                   <SwitchRoot class="switch-root" :modelValue="contextCompressionEnabled"
@@ -378,7 +380,7 @@ function openNotepad() {
               <div class="setting-item textarea-item">
                 <div class="setting-info">
                   <h3>Compression Model</h3>
-                  <p>The cheap model used to summarize chunks (must be available through OpenRouter)</p>
+                  <p>The cheap model used to summarize context (must be available through OpenRouter)</p>
                 </div>
                 <div class="input-container">
                   <input v-model="contextCompressionModel" type="text" placeholder="deepseek/deepseek-v4-flash"
@@ -388,42 +390,33 @@ function openNotepad() {
 
               <div class="setting-item">
                 <div class="setting-info">
-                  <h3>Chunk Size</h3>
-                  <p>Number of user turns per compressed chunk</p>
+                  <h3>Threshold (tokens)</h3>
+                  <p>Estimated context size at which compression runs — and at which the manual compress button appears</p>
                 </div>
                 <div class="input-container number-input-container">
-                  <input v-model.number="contextCompressionChunkSize" type="number" min="2" max="100"
+                  <input v-model.number="contextCompressionThresholdTokens" type="number" min="4000" step="1000"
                     class="custom-input number-input" />
                 </div>
               </div>
 
               <div class="setting-item">
                 <div class="setting-info">
-                  <h3>Minimum Chunk Tokens</h3>
-                  <p>Chunks smaller than this are left verbatim and rolled into the next chunk</p>
+                  <h3>Keep Recent (tokens)</h3>
+                  <p>How much of the most recent conversation always stays verbatim</p>
                 </div>
                 <div class="input-container number-input-container">
-                  <input v-model.number="contextCompressionMinChunkTokens" type="number" min="0" step="100"
-                    class="custom-input number-input" />
-                </div>
-              </div>
-
-              <div class="setting-item">
-                <div class="setting-info">
-                  <h3>Keep Recent Chunks</h3>
-                  <p>How many of the most recent chunks stay verbatim (default: last chunk only)</p>
-                </div>
-                <div class="input-container number-input-container">
-                  <input v-model.number="contextCompressionKeepRecentChunks" type="number" min="1" max="10"
+                  <input v-model.number="contextCompressionKeepRecentTokens" type="number" min="1000" step="500"
                     class="custom-input number-input" />
                 </div>
               </div>
 
               <div class="compression-info">
                 <p>
-                  Compression runs after each assistant reply, but only when a chunk has closed
-                  and its estimated tokens exceed the minimum. If you edit a message inside a
-                  summarized chunk, the summary is marked stale and rebuilt automatically.
+                  When a conversation grows past the threshold, auto compression summarizes the oldest
+                  context in the background — you can keep chatting while it runs. Even with auto
+                  compression off, a small compress button appears at the threshold so you can run it
+                  manually. If you edit an old message, affected summaries are discarded and rebuilt
+                  on the next run.
                 </p>
               </div>
             </div>

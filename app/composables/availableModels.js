@@ -636,9 +636,22 @@ export const availableModels = [
     logo: "/ai_logos/openai.svg",
     models: [
       {
-        id: "openai/gpt-5.5",
-        name: "GPT-5.5",
-        description: "Latest GPT-5 model with advanced reasoning and capabilities.",
+        id: "openai/gpt-5.6-sol",
+        name: "GPT-5.6 Sol",
+        description: "Largest GPT-5.6 model with advanced reasoning and capabilities.",
+        reasoning: {
+          supported: true,
+          toggleable: false,
+          effort: {
+            levels: ['none', 'low', 'medium', 'high', 'xhigh'],
+            default: 'low'
+          }
+        },
+      },
+      {
+        id: "openai/gpt-5.6-terra",
+        name: "GPT-5.6 Terra",
+        description: "Medium-sized GPT-5.6 model cheaper than GPT-5.5 at the same quality.",
         reasoning: {
           supported: true,
           toggleable: false,
@@ -649,22 +662,9 @@ export const availableModels = [
         },
       },
       {
-        id: "openai/gpt-5.4",
-        name: "GPT-5.4",
-        description: "Advanced GPT-5 model with strong reasoning capabilities.",
-        reasoning: {
-          supported: true,
-          toggleable: false,
-          effort: {
-            levels: ['none', 'low', 'medium', 'high', 'xhigh'],
-            default: 'medium'
-          }
-        },
-      },
-      {
-        id: "openai/gpt-5.4-mini",
-        name: "GPT-5.4 Mini",
-        description: "Lightweight variant of GPT-5.4 optimized for speed.",
+        id: "openai/gpt-5.6-luna",
+        name: "GPT-5.6 Luna",
+        description: "Smallest GPT-5.6 model for cheap & fast tasks.",
         reasoning: {
           supported: true,
           toggleable: false,
@@ -688,14 +688,6 @@ export const availableModels = [
         },
       },
       {
-        id: "openai/gpt-5.3-chat",
-        name: "GPT-5.3 Chat",
-        description: "GPT-5.3 optimized for conversational interactions.",
-        reasoning: {
-          supported: false,
-        },
-      },
-      {
         id: "openai/gpt-5.3-codex",
         name: "GPT-5.3 Codex",
         description: "GPT-5.3 specialized for code generation and understanding.",
@@ -704,32 +696,6 @@ export const availableModels = [
           toggleable: false,
           effort: {
             levels: ['low', 'medium', 'high', 'xhigh'],
-            default: 'medium'
-          }
-        },
-      },
-      {
-        id: "openai/gpt-5.2",
-        name: "GPT-5.2",
-        description: "Previous generation GPT-5 model with strong all-around performance.",
-        reasoning: {
-          supported: true,
-          toggleable: false,
-          effort: {
-            levels: ['none', 'low', 'medium', 'high', 'xhigh'],
-            default: 'medium'
-          }
-        },
-      },
-      {
-        id: "openai/gpt-oss-120b",
-        name: "GPT OSS 120B",
-        description: "High-performance open-weights model with exceptional STEM capabilities.",
-        reasoning: {
-          supported: true,
-          toggleable: false,
-          effort: {
-            levels: ['low', 'medium', 'high'],
             default: 'medium'
           }
         },
@@ -786,30 +752,6 @@ export const availableModels = [
           supported: false
         },
       },
-      {
-        id: "qwen/qwen3-next-80b-a3b-instruct",
-        name: "Qwen 3 Next 80B A3B Instruct",
-        description: "Highly efficient experimental model that punches above its weight.",
-        reasoning: {
-          supported: false
-        },
-      },
-    ],
-  },
-  {
-    category: "XAI",
-    logo: "/ai_logos/xai.svg",
-    models: [
-      {
-        id: "x-ai/grok-4.1-fast",
-        name: "Grok 4.1 Fast",
-        description: "Fast model with great agentic capabilities and limited censorship.",
-        reasoning: {
-          supported: true,
-          toggleable: true,
-          defaultEnabled: true
-        },
-      }
     ],
   },
   {
@@ -860,16 +802,6 @@ export const availableModels = [
         id: "z-ai/glm-4.7-flash",
         name: "GLM 4.7 Flash",
         description: "SOTA 30B-class model with excellent agentic capabilities",
-        reasoning: {
-          supported: true,
-          toggleable: true,
-          defaultEnabled: true
-        },
-      },
-      {
-        id: "z-ai/glm-4.6",
-        name: "GLM 4.6",
-        description: "Reliable bilingual model for reasoning and tool use.",
         reasoning: {
           supported: true,
           toggleable: true,

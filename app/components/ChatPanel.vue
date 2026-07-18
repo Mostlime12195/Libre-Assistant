@@ -6,6 +6,7 @@ import { copyCode, downloadCode } from '../utils/codeBlockUtils';
 import StreamingMessage from './StreamingMessage.vue';
 import ChatWidget from './ChatWidget.vue';
 import ContextSummaryMarker from './ContextSummaryMarker.vue';
+import { useContextCompression } from '../composables/useContextCompression';
 import { getFormattedStatsFromExecutedTools } from '../composables/searchViewStats';
 import { highlightAllBlocks } from '../utils/lazyHighlight';
 
@@ -102,6 +103,29 @@ const messageLoadingStates = reactive({});
 
 // Phase 2.2: Message stats cache
 const messageStatsCache = reactive({});
+
+// Context-compression boundary markers, derived from sidecar state.
+// Maps anchor message id -> marker props; purely presentational.
+const { getCompressionState } = useContextCompression();
+const compressionMarkers = computed(() => {
+  const map = new Map();
+  if (!props.currConvo) return map;
+  const state = getCompressionState(String(props.currConvo));
+  if (!state) return map;
+  for (const s of state.validSummaries || []) {
+    if (s?.anchorMessageId) {
+      map.set(s.anchorMessageId, {
+        status: 'completed',
+        sourceTokens: s.sourceTokens,
+        summaryTokens: s.summaryTokens,
+      });
+    }
+  }
+  if (state.status === 'running' && state.runningAnchorId) {
+    map.set(state.runningAnchorId, { status: 'in_progress' });
+  }
+  return map;
+});
 
 function formatDuration(ms) {
   if (ms < 1000) return `${ms}ms`;
@@ -604,14 +628,7 @@ defineExpose({ scrollToEnd, isAtBottom, chatWrapper });
       </div>
       <div class="messages-layer">
         <template v-for="message in messages" :key="message.id">
-          <!-- Non-interactive context-compression marker. -->
-          <ContextSummaryMarker
-            v-if="message.role === 'context_summary'"
-            :status="message.status"
-            :range-start="message.rangeStart"
-            :range-end="message.rangeEnd"
-          />
-          <div v-else class="message" :class="message.role" :data-message-id="message.id">
+          <div class="message" :class="message.role" :data-message-id="message.id">
             <div class="message-content">
                   <!-- New Parts-Based Rendering -->
                   <div v-if="message.parts && message.parts.length > 0" class="message-parts-container">
@@ -801,6 +818,11 @@ defineExpose({ scrollToEnd, isAtBottom, chatWrapper });
               </div>
             </div>
           </div>
+          <!-- Presentational divider at a summary boundary (sidecar-derived). -->
+          <ContextSummaryMarker
+            v-if="compressionMarkers.has(message.id)"
+            v-bind="compressionMarkers.get(message.id)"
+          />
         </template>
       </div>
     </div>

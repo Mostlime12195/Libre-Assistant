@@ -9,8 +9,14 @@ import { useSettings } from './useSettings';
 import { useGlobalIncognito } from './useGlobalIncognito';
 import { emitter } from './emitter';
 import { PartsBuilder, TimingTracker } from './partsBuilder';
-import { transformHistoryForAPI } from './contextCompressor';
-import { triggerContextCompression } from './contextCompressionPipeline';
+import { buildApiHistory } from './contextCompressor';
+import {
+  maybeAutoCompress,
+  refreshCompressionState,
+  getCachedValidSummaries,
+  loadCompressionState,
+  clearCompressionState,
+} from './contextCompressionPipeline';
 import {
   getMessagesForBranchPath,
   createBranch,
@@ -67,6 +73,7 @@ export function useMessagesManager(chatPanel) {
 
   // Handle conversation deletion
   const handleConversationDeleted = ({ conversationId }) => {
+    clearCompressionState(conversationId);
     if (currConvo.value === conversationId && !isIncognito.value) {
       currConvo.value = '';
       messages.value = [];
@@ -181,6 +188,29 @@ export function useMessagesManager(chatPanel) {
   }
 
   /**
+   * Fire-and-forget auto compression trigger. Runs after the user sends a
+   * message and again after the assistant finishes, so the context is kept
+   * compact regardless of which side of the turn pushed it over the threshold.
+   */
+  function triggerAutoCompression() {
+    if (isIncognito.value || !currConvo.value) return;
+
+    const convoId = currConvo.value;
+    const settingsSnapshot = settingsManager.settings;
+    refreshCompressionState(convoId, visibleMessages.value, settingsSnapshot);
+    maybeAutoCompress({
+      conversationId: convoId,
+      getVisibleMessages: () => visibleMessages.value,
+      settings: settingsSnapshot,
+      apiKey: settingsSnapshot.custom_api_key,
+      branchPath: branchPath.value.slice(),
+      isIncognito: isIncognito.value,
+    }).catch((error) => {
+      console.error("[messagesManager] auto compression failed:", error);
+    });
+  }
+
+  /**
    * Sends a message to the AI and handles the response
    */
   async function sendMessage(message, originalMessage = null, attachments = [], searchEnabled = false, options = {}) {
@@ -222,6 +252,10 @@ export function useMessagesManager(chatPanel) {
         conversationTitle.value = convData?.title || "";
       }
     }
+
+    // Fire-and-forget: auto-compress after the user message is added, in
+    // case the user turn itself pushed the context over the threshold.
+    triggerAutoCompression();
 
     await nextTick();
     requestAnimationFrame(() => {
@@ -278,12 +312,12 @@ export function useMessagesManager(chatPanel) {
         return true;
       });
 
-      // Apply context compression: replace summarized chunks with
-      // labeled summary messages. Skipped in incognito mode (where
-      // we never wrote markers in the first place).
+      // Apply context compression: swap spans covered by valid sidecar
+      // summaries for labeled summary messages. Skipped in incognito
+      // mode (where nothing is persisted or compressed).
       const historyForAPI = isIncognito.value
         ? rawHistory
-        : transformHistoryForAPI(rawHistory);
+        : buildApiHistory(rawHistory, getCachedValidSummaries(currConvo.value));
 
       const streamGenerator = handleIncomingMessage(
         message,
@@ -464,27 +498,11 @@ export function useMessagesManager(chatPanel) {
       // Store messages if not in incognito mode
       if (!isIncognito.value) {
         await storeMessages(currConvo.value, toRaw(messages.value), new Date());
-
-        // Fire-and-forget: kick off context compression in the
-        // background. Never awaited — the chat is already done.
-        const snapshot = toRaw(messages.value).slice();
-        const convoId = currConvo.value;
-        const pathSnapshot = branchPath.value.slice();
-        const settingsSnapshot = settingsManager.settings;
-        triggerContextCompression({
-          conversationId: convoId,
-          messages: snapshot,
-          branchPath: pathSnapshot,
-          settings: settingsSnapshot,
-          apiKey: settingsSnapshot.custom_api_key,
-          controllers: {
-            updateMessages: (next) => { messages.value = next; },
-            persist: (next) => storeMessages(convoId, toRaw(next), new Date()),
-          },
-        }).catch((error) => {
-          console.error("[messagesManager] compression trigger failed:", error);
-        });
       }
+
+      // Fire-and-forget: auto-compress after the assistant turn completes,
+      // in case the assistant response pushed the context over the threshold.
+      triggerAutoCompression();
     }
   }
 
@@ -546,6 +564,12 @@ export function useMessagesManager(chatPanel) {
 
     conversationTitle.value = conv?.title || '';
     chatLoading.value = false;
+
+    // Load compression sidecar and derive threshold/summary state.
+    if (id) {
+      await loadCompressionState(id);
+      refreshCompressionState(id, visibleMessages.value, settingsManager.settings);
+    }
   }
 
   /**

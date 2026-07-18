@@ -2,6 +2,11 @@ import localforage from "localforage";
 import { reactive } from "vue";
 import { availableModels, findModelById, DEFAULT_MODEL_ID } from './availableModels';
 import DEFAULT_PARAMETERS from './defaultParameters';
+import {
+  DEFAULT_COMPRESSION_MODEL,
+  DEFAULT_THRESHOLD_TOKENS,
+  DEFAULT_KEEP_RECENT_TOKENS,
+} from './contextCompressor';
 
 /**
  * Manages application settings for the Libre Assistant Interface.
@@ -14,7 +19,7 @@ class Settings {
     // Use a reactive reference for settings to improve reactivity
     const settings = reactive({
       // Version marker for future migrations
-      version: 4,
+      version: 5,
 
       // --- User Profile Settings ---
       user_name: null, // User's name
@@ -25,11 +30,10 @@ class Settings {
       notepad_enabled: false, // Whether the Notepad memory system is enabled
 
       // --- Context Compression Settings ---
-      context_compression_enabled: false, // Master toggle for per-chunk context compression
-      context_compression_model: "deepseek/deepseek-v4-flash", // Cheap summarizer model
-      context_compression_chunk_size: 10, // User turns per chunk
-      context_compression_min_chunk_tokens: 2000, // Skip compression of trivial chunks
-      context_compression_keep_recent_chunks: 1, // How many most-recent chunks stay verbatim
+      context_compression_enabled: true, // Auto-compress older context past the threshold
+      context_compression_model: DEFAULT_COMPRESSION_MODEL, // Cheap summarizer model
+      context_compression_threshold_tokens: DEFAULT_THRESHOLD_TOKENS, // Compress once effective context exceeds this
+      context_compression_keep_recent_tokens: DEFAULT_KEEP_RECENT_TOKENS, // How much recent context always stays verbatim
 
       // --- Model Settings ---
       selected_model_id: DEFAULT_MODEL_ID, // Default model ID
@@ -55,13 +59,12 @@ class Settings {
 
     // Create a non-reactive copy of default settings to avoid circular references
     this.defaultSettings = {
-      version: 4,
+      version: 5,
       notepad_enabled: false, // Whether the Notepad memory system is enabled
-      context_compression_enabled: true, // Master toggle for per-chunk context compression
-      context_compression_model: "deepseek/deepseek-v4-flash", // Cheap summarizer model
-      context_compression_chunk_size: 10, // User turns per chunk
-      context_compression_min_chunk_tokens: 2000, // Skip compression of trivial chunks
-      context_compression_keep_recent_chunks: 1, // How many most-recent chunks stay verbatim
+      context_compression_enabled: true, // Auto-compress older context past the threshold
+      context_compression_model: DEFAULT_COMPRESSION_MODEL, // Cheap summarizer model
+      context_compression_threshold_tokens: DEFAULT_THRESHOLD_TOKENS, // Compress once effective context exceeds this
+      context_compression_keep_recent_tokens: DEFAULT_KEEP_RECENT_TOKENS, // How much recent context always stays verbatim
       selected_model_id: DEFAULT_MODEL_ID, // Default model ID
       search_enabled: false, // Default value for search setting
       model_settings: {}, // Default value for model settings
@@ -143,9 +146,12 @@ class Settings {
         }
         delete mergedSettings.notebook_memory_enabled;
 
-        // Migration: v3 → v4 — context compression settings were added.
-        // The deep merge above already applies the new defaults, so no
-        // explicit data transformation is needed (no-op migration).
+        // Migration: v4 → v5 — chunk-based compression settings were
+        // replaced by threshold-based ones (auto compression + manual
+        // compress button). Drop the retired keys; enabled/model carry over.
+        delete mergedSettings.context_compression_chunk_size;
+        delete mergedSettings.context_compression_min_chunk_tokens;
+        delete mergedSettings.context_compression_keep_recent_chunks;
 
         // Migration: If search_enabled is true and grounding parameter doesn't exist yet,
         // set grounding to true to preserve user's previous search preference

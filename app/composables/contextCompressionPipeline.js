@@ -1,49 +1,170 @@
 /**
  * @file contextCompressionPipeline.js
- * @description Background orchestration for context compression.
+ * @description Orchestration for context compression.
  *
- * The pipeline is intentionally fire-and-forget: the chat UI should
- * never block on a compression call. The only side effects are
- *   1. Inserting an `in_progress` `context_summary` marker into the
- *      chat's `messages` array so the UI shows progress.
- *   2. Mutating that marker to `completed` (with `summaryText`) or
- *      `stale` when the model call finishes (or fails).
- *   3. Persisting the chunk's metadata to the sidecar.
+ * The pipeline NEVER touches the chat's messages array. It only:
+ *   1. Reads the visible messages (via a getter, fresh on every pass).
+ *   2. Calls the compression model for a selected range.
+ *   3. Writes the resulting summary record to the sidecar.
+ *   4. Publishes reactive per-conversation state for the UI
+ *      (threshold reached, running, progress, savings, errors).
  *
- * The pipeline never deletes data, never edits user/assistant
- * messages, and is safe to interrupt: on the next call we simply
- * detect any `in_progress` markers and treat them as not-yet-done.
- *
- * Triggers:
- *   - The chat messages array contains a "closed" chunk (a span of
- *     `chunkSize` user turns that ends strictly before the last user
- *     message) AND the chunk is above `minChunkTokens`.
- *   - No in-flight compression run for this conversation.
- *
- * The pipeline is also a public entry point: a UI button or a future
- * "rebuild all summaries" command can call `forceCompressConversation`.
+ * Because the messages array is immutable as far as compression is
+ * concerned, runs are safe to overlap with ongoing chatting and
+ * streaming: a send simply uses whatever summaries exist at that
+ * moment (see buildApiHistory in contextCompressor.js).
  */
 
-import localforage from "localforage";
-import mitt from "mitt";
+import { reactive } from "vue";
 import {
   loadContextSummary,
   saveContextSummary,
-  identifyNextChunk,
-  buildInProgressMarker,
-  estimateChunkTokens,
+  findValidSummaries,
+  selectCompressionRange,
+  estimateEffectiveTokens,
+  resolveCompressionSettings,
+  shouldOfferCompression,
   callCompressionModel,
+  buildSummaryRecord,
   hashBranchPath,
+  MAX_RANGE_TOKENS,
 } from "./contextCompressor";
 
 // ---------------------------------------------------------------------------
-// Event bus
+// Reactive per-conversation state (consumed by ChatPanel / the chip)
 // ---------------------------------------------------------------------------
 
-export const contextCompressionEvents = mitt();
+/**
+ * @type {Object<string, {
+ *   status: 'idle'|'running',
+ *   loaded: boolean,
+ *   chunks: Array,
+ *   validSummaries: Array,
+ *   effectiveTokens: number,
+ *   thresholdReached: boolean,
+ *   hasEligibleRange: boolean,
+ *   runningAnchorId: string|null,
+ *   progress: {current: number}|null,
+ *   lastError: string|null,
+ *   lastSavings: {sourceTokens: number, summaryTokens: number}|null,
+ *   dismissed: boolean,
+ *   dismissedAtTokens: number,
+ *   destroyed: boolean,
+ * }>}
+ */
+export const compressionStates = reactive({});
 
-function emitEvent(conversationId, payload) {
-  contextCompressionEvents.emit("change", { conversationId, ...payload });
+function freshState() {
+  return {
+    status: "idle",
+    loaded: false,
+    chunks: [],
+    validSummaries: [],
+    effectiveTokens: 0,
+    thresholdReached: false,
+    hasEligibleRange: false,
+    runningAnchorId: null,
+    progress: null,
+    lastError: null,
+    lastSavings: null,
+    dismissed: false,
+    dismissedAtTokens: 0,
+    destroyed: false,
+  };
+}
+
+/**
+ * Returns the reactive state object for a conversation, creating it
+ * on first access.
+ * @param {string} conversationId
+ */
+export function getCompressionState(conversationId) {
+  if (!conversationId) return null;
+  if (!compressionStates[conversationId]) {
+    compressionStates[conversationId] = freshState();
+  }
+  return compressionStates[conversationId];
+}
+
+/**
+ * Drops all state for a conversation (e.g. after it was deleted).
+ * In-flight runs for it discard their result instead of persisting.
+ * @param {string} conversationId
+ */
+export function clearCompressionState(conversationId) {
+  const state = compressionStates[conversationId];
+  if (state) state.destroyed = true;
+  delete compressionStates[conversationId];
+}
+
+// ---------------------------------------------------------------------------
+// Sidecar loading / refresh
+// ---------------------------------------------------------------------------
+
+/**
+ * Loads the sidecar into the reactive cache. Call when a conversation
+ * becomes active.
+ * @param {string} conversationId
+ */
+export async function loadCompressionState(conversationId) {
+  const state = getCompressionState(conversationId);
+  if (!state) return;
+  const record = await loadContextSummary(conversationId);
+  if (state.destroyed) return;
+  state.chunks = record.chunks;
+  state.loaded = true;
+}
+
+/**
+ * Recomputes derived state (valid summaries, effective tokens,
+ * threshold) against the current visible messages. Cheap heuristic
+ * math only — safe to call on every send / message change.
+ *
+ * @param {string} conversationId
+ * @param {Array} visibleMessages
+ * @param {Object} settings
+ */
+export function refreshCompressionState(conversationId, visibleMessages, settings) {
+  const state = getCompressionState(conversationId);
+  if (!state || state.destroyed) return;
+
+  const { thresholdTokens, keepRecentTokens } = resolveCompressionSettings(settings);
+  const messages = Array.isArray(visibleMessages) ? visibleMessages : [];
+
+  const valid = findValidSummaries(messages, state.chunks);
+  state.validSummaries = valid;
+  state.effectiveTokens = estimateEffectiveTokens(messages, valid);
+
+  const probe = selectCompressionRange(messages, valid, {
+    keepRecentTokens,
+    targetTokens: Infinity,
+  });
+  state.hasEligibleRange = probe !== null;
+
+  state.thresholdReached = shouldOfferCompression({
+    effectiveTokens: state.effectiveTokens,
+    thresholdTokens,
+    hasEligibleRange: state.hasEligibleRange,
+  });
+
+  // Re-offer after dismissal once the context has grown meaningfully.
+  if (
+    state.dismissed &&
+    state.effectiveTokens > state.dismissedAtTokens * 1.25
+  ) {
+    state.dismissed = false;
+  }
+}
+
+/**
+ * Returns the currently valid summaries for a conversation (empty
+ * array when unknown). Used by the send path to build API history.
+ * @param {string} conversationId
+ * @returns {Array}
+ */
+export function getCachedValidSummaries(conversationId) {
+  const state = compressionStates[conversationId];
+  return state ? state.validSummaries : [];
 }
 
 // ---------------------------------------------------------------------------
@@ -53,256 +174,83 @@ function emitEvent(conversationId, payload) {
 /** @type {Map<string, Promise<any>>} */
 const inFlightRuns = new Map();
 
-/**
- * Returns true if a compression run is currently in flight for the
- * given conversation in this tab.
- * @param {string} conversationId
- * @returns {boolean}
- */
 export function isCompressionRunning(conversationId) {
   return inFlightRuns.has(conversationId);
 }
 
 // ---------------------------------------------------------------------------
-// Settings resolution
+// Pruning
 // ---------------------------------------------------------------------------
 
 /**
- * Resolves the compression settings from the user's settings object.
- * Returns safe defaults if anything is missing or invalid.
+ * Removes chunk records that the new record fully supersedes (their
+ * covered id list is a subset of the new record's). Records that only
+ * partially overlap — e.g. summaries made on a different branch that
+ * share a prefix — are kept, since they remain valid for that branch.
  *
- * @param {Object} settings
- * @returns {{enabled: boolean, model: string, chunkSize: number, minChunkTokens: number}}
- */
-export function resolveCompressionSettings(settings) {
-  const s = settings || {};
-  const enabled = s.context_compression_enabled !== false; // default true
-  const model =
-    typeof s.context_compression_model === "string" && s.context_compression_model.trim()
-      ? s.context_compression_model.trim()
-      : "deepseek/deepseek-v4-flash";
-  let chunkSize = Number(s.context_compression_chunk_size);
-  if (!Number.isFinite(chunkSize) || chunkSize < 2) chunkSize = 10;
-  let minChunkTokens = Number(s.context_compression_min_chunk_tokens);
-  if (!Number.isFinite(minChunkTokens) || minChunkTokens < 0) minChunkTokens = 2000;
-  return { enabled, model, chunkSize, minChunkTokens };
-}
-
-// ---------------------------------------------------------------------------
-// Trigger detection
-// ---------------------------------------------------------------------------
-
-/**
- * Returns `{shouldRun, chunk, reason}` for a given conversation.
- * Pure read; does not mutate anything.
- *
- * @param {Array} visibleMessages
- * @param {Object} settings
- * @returns {{shouldRun: boolean, chunk: Object|null, reason: string|null}}
- */
-export function shouldRunCompression(visibleMessages, settings) {
-  const { enabled, chunkSize, minChunkTokens } = resolveCompressionSettings(settings);
-  if (!enabled) return { shouldRun: false, chunk: null, reason: "disabled" };
-
-  const next = identifyNextChunk(visibleMessages, chunkSize);
-  if (!next) return { shouldRun: false, chunk: null, reason: "no_chunk" };
-  if (!next.isClosed) {
-    return { shouldRun: false, chunk: next, reason: "chunk_not_closed" };
-  }
-
-  const tokens = estimateChunkTokens(next.chunk);
-  if (tokens < minChunkTokens) {
-    return { shouldRun: false, chunk: next, reason: "below_token_floor" };
-  }
-
-  return { shouldRun: true, chunk: next, reason: null };
-}
-
-// ---------------------------------------------------------------------------
-// Message mutation helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Inserts a `context_summary` marker into the messages array directly
- * after the last message of the chunk. Returns the new array and the
- * inserted marker (by reference).
- *
- * @param {Array} messages
- * @param {Object} chunk
- * @param {Object} params
- * @param {string} params.model
- * @returns {{messages: Array, marker: Object}}
- */
-export function insertInProgressMarker(messages, chunk, { model }) {
-  if (!Array.isArray(messages) || !chunk) return { messages, marker: null };
-  const lastChunkMsg = chunk.chunk[chunk.chunk.length - 1];
-  const parentId = lastChunkMsg ? lastChunkMsg.id : null;
-  const tokenEstimate = estimateChunkTokens(chunk.chunk);
-
-  const marker = buildInProgressMarker({
-    rangeStart: chunk.rangeStart,
-    rangeEnd: chunk.rangeEnd,
-    parentId,
-    compressedBy: model,
-    tokenEstimate,
-  });
-  marker.sourceMessageIds = chunk.chunk
-    .filter((m) => m && m.id)
-    .map((m) => m.id);
-
-  // Find the index of the last chunk message in the messages array.
-  const insertAt = messages.findIndex((m) => m && m.id === parentId);
-  const out = messages.slice();
-  if (insertAt === -1) {
-    out.push(marker);
-  } else {
-    out.splice(insertAt + 1, 0, marker);
-  }
-  return { messages: out, marker };
-}
-
-/**
- * Replaces an `in_progress` marker with a `completed` (or `stale`) one,
- * preserving the original object identity where possible. Operates on
- * the messages array by id and returns a NEW array.
- *
- * @param {Array} messages
- * @param {string} markerId
- * @param {Object} updates
+ * @param {Array} chunks
+ * @param {Object} newRecord
  * @returns {Array}
  */
-export function updateMarker(messages, markerId, updates) {
-  if (!Array.isArray(messages) || !markerId) return messages;
-  return messages.map((m) => {
-    if (!m || m.id !== markerId) return m;
-    return { ...m, ...updates };
+function pruneChunks(chunks, newRecord) {
+  const newIds = new Set(newRecord.sourceMessageIds);
+  const kept = (chunks || []).filter((chunk) => {
+    if (!chunk || !Array.isArray(chunk.sourceMessageIds)) return false;
+    const fullyCovered = chunk.sourceMessageIds.every((id) => newIds.has(id));
+    return !fullyCovered;
   });
+  // Cap sidecar growth; drop the oldest records first.
+  const MAX_RECORDS = 50;
+  while (kept.length >= MAX_RECORDS) kept.shift();
+  return kept;
 }
 
 // ---------------------------------------------------------------------------
-// Sidecar update
+// Main entry points
 // ---------------------------------------------------------------------------
 
 /**
- * Persists a chunk's completion (or staleness) into the sidecar. The
- * sidecar stores one record per chunk, keyed by range. Existing
- * records for the same range are overwritten.
+ * Runs compression for a conversation. Never throws, never blocks the
+ * chat, and never mutates messages.
  *
- * @param {string} conversationId
- * @param {string} branchPathHash
- * @param {Object} chunkRecord
- */
-async function persistChunk(conversationId, branchPathHash, chunkRecord) {
-  const record = await loadContextSummary(conversationId);
-  const idx = record.chunks.findIndex(
-    (c) =>
-      c &&
-      c.rangeStart === chunkRecord.rangeStart &&
-      c.rangeEnd === chunkRecord.rangeEnd,
-  );
-  const next = { ...chunkRecord, branchPathHash };
-  if (idx === -1) {
-    record.chunks.push(next);
-  } else {
-    record.chunks[idx] = { ...record.chunks[idx], ...next };
-  }
-  await saveContextSummary(conversationId, record);
-}
-
-// ---------------------------------------------------------------------------
-// Main entry point
-// ---------------------------------------------------------------------------
-
-/**
- * Triggers a compression pass for a conversation if appropriate. The
- * call is fire-and-forget from the caller's perspective: it returns
- * a promise that resolves to the pipeline result but never throws.
+ * mode "auto":   compress a single range sized to get back under the
+ *                threshold (small, fast, incremental).
+ * mode "manual": compress everything eligible, in as many sequential
+ *                ranges as needed (whole-chat compression).
  *
  * @param {Object} params
  * @param {string} params.conversationId
- * @param {Array} params.messages  Current full messages array.
- * @param {Array<number>} params.branchPath
+ * @param {() => Array} params.getVisibleMessages  Fresh getter (re-read every pass).
  * @param {Object} params.settings
  * @param {string} params.apiKey
- * @param {Object} [params.controllers]  Map of conversationId -> { updateMessages, persist }.
- * @returns {Promise<{ran: boolean, status: string, reason?: string, markerId?: string, summaryText?: string}>}
+ * @param {Array<number>} [params.branchPath]
+ * @param {'auto'|'manual'} [params.mode]
+ * @returns {Promise<{ran: boolean, status: string, reason?: string}>}
  */
-export async function triggerContextCompression(params) {
+export async function compressConversation(params) {
   const {
     conversationId,
-    messages,
-    branchPath,
+    getVisibleMessages,
     settings,
     apiKey,
-    controllers,
+    branchPath,
+    mode = "auto",
   } = params || {};
 
-  if (!conversationId || !Array.isArray(messages)) {
-    return { ran: false, status: "skipped", reason: "no_conversation" };
-  }
-
-  if (inFlightRuns.has(conversationId)) {
-    return { ran: false, status: "skipped", reason: "already_running" };
-  }
-
-  // Re-evaluate triggers against the current messages.
-  const { shouldRun, chunk, reason } = shouldRunCompression(messages, settings);
-  if (!shouldRun || !chunk) {
-    return { ran: false, status: "skipped", reason: reason || "no_trigger" };
-  }
-
-  const run = runCompressionInternal({
-    conversationId,
-    messages,
-    chunk,
-    branchPath,
-    settings,
-    apiKey,
-    controllers,
-  });
-
-  inFlightRuns.set(
-    conversationId,
-    run.finally(() => inFlightRuns.delete(conversationId)),
-  );
-
-  return inFlightRuns.get(conversationId);
-}
-
-/**
- * Force-run a compression pass regardless of triggers. Used by future
- * "rebuild all" controls. Returns the same shape as
- * `triggerContextCompression`.
- */
-export async function forceCompressConversation(params) {
-  const {
-    conversationId,
-    messages,
-    branchPath,
-    settings,
-    apiKey,
-    controllers,
-  } = params || {};
-  if (!conversationId || !Array.isArray(messages)) {
+  if (!conversationId || typeof getVisibleMessages !== "function") {
     return { ran: false, status: "skipped", reason: "no_conversation" };
   }
   if (inFlightRuns.has(conversationId)) {
     return inFlightRuns.get(conversationId);
   }
 
-  const { model, chunkSize } = resolveCompressionSettings(settings);
-  const next = identifyNextChunk(messages, chunkSize);
-  if (!next) return { ran: false, status: "skipped", reason: "no_chunk" };
-
   const run = runCompressionInternal({
     conversationId,
-    messages,
-    chunk: next,
-    branchPath,
+    getVisibleMessages,
     settings,
     apiKey,
-    controllers,
-    force: true,
+    branchPath,
+    mode,
   });
 
   inFlightRuns.set(
@@ -314,137 +262,206 @@ export async function forceCompressConversation(params) {
 
 async function runCompressionInternal({
   conversationId,
-  messages,
-  chunk,
-  branchPath,
+  getVisibleMessages,
   settings,
   apiKey,
-  controllers,
-  force,
+  branchPath,
+  mode,
 }) {
-  const { model } = resolveCompressionSettings(settings);
+  const state = getCompressionState(conversationId);
+  if (!state) return { ran: false, status: "skipped", reason: "no_state" };
+
+  const { model, thresholdTokens, keepRecentTokens } =
+    resolveCompressionSettings(settings);
   const branchPathHash = hashBranchPath(branchPath);
 
-  // 1. Insert in_progress marker
-  const { messages: withMarker, marker } = insertInProgressMarker(messages, chunk, {
-    model,
-  });
-  if (!marker) {
-    return { ran: false, status: "skipped", reason: "marker_insert_failed" };
-  }
+  state.status = "running";
+  state.lastError = null;
+  state.progress = { current: 0 };
 
-  // Push the new messages array back to the caller so the UI updates.
-  if (controllers?.updateMessages) {
-    try {
-      controllers.updateMessages(withMarker);
-    } catch (error) {
-      console.error("[contextCompressionPipeline] updateMessages failed:", error);
-    }
-  }
-  emitEvent(conversationId, {
-    status: "started",
-    markerId: marker.id,
-    range: { start: chunk.rangeStart, end: chunk.rangeEnd },
-  });
+  let totalSource = 0;
+  let totalSummary = 0;
+  let rangesDone = 0;
 
-  // 2. Call the compression model.
-  let summaryText = null;
   try {
-    summaryText = await callCompressionModel(chunk.chunk, {
-      apiKey,
-      model,
-      rangeStart: chunk.rangeStart,
-      rangeEnd: chunk.rangeEnd,
-    });
+    // Ensure we have the sidecar before selecting ranges.
+    if (!state.loaded) {
+      await loadCompressionState(conversationId);
+      if (state.destroyed) return { ran: false, status: "skipped", reason: "destroyed" };
+    }
+
+    while (true) {
+      const rawVisible = getVisibleMessages() || [];
+      const visible = Array.isArray(rawVisible) ? rawVisible : [];
+      refreshCompressionState(conversationId, visible, settings);
+
+      const valid = state.validSummaries;
+      const effective = state.effectiveTokens;
+
+      // Size the next range.
+      let targetTokens = Infinity;
+      if (mode === "auto") {
+        // Compress enough to get comfortably back under the threshold.
+        targetTokens = Math.min(
+          MAX_RANGE_TOKENS,
+          Math.max(2000, effective - thresholdTokens + Math.round(thresholdTokens * 0.15)),
+        );
+      }
+
+      const range = selectCompressionRange(visible, valid, {
+        keepRecentTokens,
+        maxRangeTokens: MAX_RANGE_TOKENS,
+        targetTokens,
+      });
+      if (!range) break;
+
+      state.progress = { current: rangesDone + 1 };
+      state.runningAnchorId = range.anchorMessageId;
+
+      // Continuity: hand the summarizer the directly preceding summary.
+      const previous = valid[valid.length - 1];
+      const previousSummary =
+        previous && previous.endIndex === range.startIndex - 1
+          ? previous.summaryText
+          : null;
+
+      const summaryText = await callCompressionModel(range.messages, {
+        apiKey,
+        model,
+        previousSummary,
+      });
+
+      if (state.destroyed) {
+        return { ran: rangesDone > 0, status: "discarded" };
+      }
+
+      if (!summaryText) {
+        state.lastError = "The compression model did not return a summary.";
+        break;
+      }
+
+      const record = buildSummaryRecord({
+        range,
+        summaryText,
+        model,
+        branchPathHash,
+      });
+
+      const chunks = pruneChunks(state.chunks, record);
+      chunks.push(record);
+      await saveContextSummary(conversationId, { chunks });
+      state.chunks = chunks;
+
+      totalSource += record.sourceTokens;
+      totalSummary += record.summaryTokens;
+      rangesDone++;
+
+      // Reflect the new summary immediately.
+      refreshCompressionState(conversationId, getVisibleMessages() || [], settings);
+
+      if (mode === "auto") break; // one range per trigger
+    }
   } catch (error) {
-    console.error("[contextCompressionPipeline] compression error:", error);
+    console.error("[contextCompressionPipeline] run failed:", error);
+    state.lastError = error?.message || "Compression failed.";
+  } finally {
+    state.status = "idle";
+    state.runningAnchorId = null;
+    state.progress = null;
+    if (rangesDone > 0) {
+      state.lastSavings = {
+        sourceTokens: totalSource,
+        summaryTokens: totalSummary,
+      };
+      state.dismissed = false;
+    }
   }
 
-  // 3. Update the marker in the caller's messages array.
-  if (summaryText) {
-    const finalMessages = updateMarker(withMarker, marker.id, {
-      status: "completed",
-      summaryText,
-      compressedAt: new Date().toISOString(),
-    });
-    if (controllers?.updateMessages) {
-      try {
-        controllers.updateMessages(finalMessages);
-      } catch (error) {
-        console.error("[contextCompressionPipeline] updateMessages failed:", error);
-      }
-    }
-    if (controllers?.persist) {
-      try {
-        await controllers.persist(finalMessages);
-      } catch (error) {
-        console.error("[contextCompressionPipeline] persist failed:", error);
-      }
-    }
-
-    await persistChunk(conversationId, branchPathHash, {
-      rangeStart: chunk.rangeStart,
-      rangeEnd: chunk.rangeEnd,
-      sourceMessageIds: marker.sourceMessageIds,
-      status: "completed",
-      summaryText,
-      compressedAt: new Date().toISOString(),
-      compressedBy: model,
-      tokenEstimate: marker.tokenEstimate,
-    });
-
-    emitEvent(conversationId, {
-      status: "completed",
-      markerId: marker.id,
-      range: { start: chunk.rangeStart, end: chunk.rangeEnd },
-    });
-
+  if (rangesDone > 0) {
     return {
       ran: true,
-      status: "completed",
-      markerId: marker.id,
-      summaryText,
+      status: state.lastError ? "partial" : "completed",
+      ranges: rangesDone,
     };
   }
+  return {
+    ran: false,
+    status: state.lastError ? "failed" : "skipped",
+    reason: state.lastError ? "model_error" : "no_range",
+  };
+}
 
-  // 4. Failure path: mark the chunk stale.
-  const finalMessages = updateMarker(withMarker, marker.id, {
-    status: "stale",
-    compressedAt: new Date().toISOString(),
-  });
-  if (controllers?.updateMessages) {
-    try {
-      controllers.updateMessages(finalMessages);
-    } catch (error) {
-      console.error("[contextCompressionPipeline] updateMessages failed:", error);
-    }
+/**
+ * Post-reply auto trigger. Runs at most one range, in the background,
+ * only when auto compression is enabled and the threshold is crossed.
+ *
+ * @param {Object} params
+ * @param {string} params.conversationId
+ * @param {() => Array} params.getVisibleMessages
+ * @param {Object} params.settings
+ * @param {string} params.apiKey
+ * @param {Array<number>} [params.branchPath]
+ * @param {boolean} [params.isIncognito]
+ * @returns {Promise<{ran: boolean, status: string, reason?: string}>}
+ */
+export async function maybeAutoCompress(params) {
+  const {
+    conversationId,
+    getVisibleMessages,
+    settings,
+    apiKey,
+    branchPath,
+    isIncognito,
+  } = params || {};
+
+  if (!conversationId || isIncognito) {
+    return { ran: false, status: "skipped", reason: "unavailable" };
   }
-  if (controllers?.persist) {
-    try {
-      await controllers.persist(finalMessages);
-      // eslint-disable-next-line no-unused-vars
-      const _ = force;
-    } catch (error) {
-      console.error("[contextCompressionPipeline] persist failed:", error);
-    }
+  const { enabled } = resolveCompressionSettings(settings);
+  if (!enabled) return { ran: false, status: "skipped", reason: "disabled" };
+  if (!apiKey) return { ran: false, status: "skipped", reason: "no_api_key" };
+  if (inFlightRuns.has(conversationId)) {
+    return { ran: false, status: "skipped", reason: "already_running" };
   }
 
-  await persistChunk(conversationId, branchPathHash, {
-    rangeStart: chunk.rangeStart,
-    rangeEnd: chunk.rangeEnd,
-    sourceMessageIds: marker.sourceMessageIds,
-    status: "stale",
-    summaryText: null,
-    compressedAt: new Date().toISOString(),
-    compressedBy: model,
-    tokenEstimate: marker.tokenEstimate,
-  });
+  refreshCompressionState(
+    conversationId,
+    typeof getVisibleMessages === "function" ? getVisibleMessages() : [],
+    settings,
+  );
+  const state = getCompressionState(conversationId);
+  if (!state?.thresholdReached) {
+    return { ran: false, status: "skipped", reason: "below_threshold" };
+  }
 
-  emitEvent(conversationId, {
-    status: "failed",
-    markerId: marker.id,
-    range: { start: chunk.rangeStart, end: chunk.rangeEnd },
-  });
+  return compressConversation({ ...params, mode: "auto" });
+}
 
-  return { ran: true, status: "stale", markerId: marker.id };
+// ---------------------------------------------------------------------------
+// UI helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Marks the manual prompt as dismissed for this conversation. It
+ * re-appears once the context grows ~25% past the dismissal point,
+ * or after any successful compression.
+ * @param {string} conversationId
+ */
+export function dismissCompressionPrompt(conversationId) {
+  const state = getCompressionState(conversationId);
+  if (!state) return;
+  state.dismissed = true;
+  state.dismissedAtTokens = state.effectiveTokens;
+}
+
+/**
+ * Formats a token count compactly for labels ("~48k", "~900").
+ * @param {number} tokens
+ * @returns {string}
+ */
+export function formatTokenCount(tokens) {
+  const n = Number(tokens);
+  if (!Number.isFinite(n) || n <= 0) return "0";
+  if (n >= 1000) return `~${Math.round(n / 1000)}k`;
+  return `~${Math.round(n)}`;
 }

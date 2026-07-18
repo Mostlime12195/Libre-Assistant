@@ -58,8 +58,8 @@ describe("findModelById", () => {
   });
 
   it("finds real catalog models (spot checks)", () => {
-    expect(findModelById(availableModels, "anthropic/claude-sonnet-4.6").name).toBe("Claude Sonnet 4.6");
-    expect(findModelById(availableModels, "openai/gpt-oss-120b").name).toBe("GPT OSS 120B");
+    expect(findModelById(availableModels, "anthropic/claude-opus-4.8").name).toBe("Claude Opus 4.8");
+    expect(findModelById(availableModels, "moonshotai/kimi-k3").name).toBe("Kimi K3");
   });
 });
 

@@ -2,30 +2,29 @@
 /**
  * ContextSummaryMarker
  * --------------------
- * A non-interactive visual marker that sits between a summarized
- * chunk of messages and the next chunk. Renders nothing actionable
- * — no buttons, no hover, no copy, no expand.
+ * A subtle divider rendered at the boundary where a span of earlier
+ * messages has been compressed into a sidecar summary. Purely
+ * presentational: the marker is NOT a chat message and never touches
+ * the messages array — ChatPanel renders it after the message whose
+ * id is the summary's anchor.
  *
- * Two visual states:
- *   - "Compressing" (in_progress): spinner + label "Compressing"
- *   - "Completed": static label "Context summary · messages N–M"
- *   - "Stale": static label "Stale"
- *
- * The component never reveals the summary text to the user; the
- * summary only flows to the model via the API history.
+ * States:
+ *   - "in_progress": spinner + "Compressing context…"
+ *   - "completed":   "Earlier messages summarized · ~X → ~Y tokens"
  */
 import { computed } from "vue";
+import { formatTokenCount } from "../composables/contextCompressionPipeline";
 
 const props = defineProps({
   status: {
     type: String,
-    default: "completed", // "in_progress" | "completed" | "stale"
+    default: "completed", // "in_progress" | "completed"
   },
-  rangeStart: {
+  sourceTokens: {
     type: Number,
     default: null,
   },
-  rangeEnd: {
+  summaryTokens: {
     type: Number,
     default: null,
   },
@@ -33,15 +32,17 @@ const props = defineProps({
 
 const statusClass = computed(() => `status-${props.status || "completed"}`);
 const label = computed(() => {
-  if (props.status === "in_progress") return "Compressing";
-  if (props.status === "stale") return "Stale";
+  if (props.status === "in_progress") return "Compressing context…";
+  let text = "Earlier messages summarized";
   if (
-    typeof props.rangeStart === "number" &&
-    typeof props.rangeEnd === "number"
+    typeof props.sourceTokens === "number" &&
+    typeof props.summaryTokens === "number" &&
+    props.sourceTokens > 0 &&
+    props.summaryTokens > 0
   ) {
-    return `Context summary · messages ${props.rangeStart}\u2013${props.rangeEnd}`;
+    text += ` · ${formatTokenCount(props.sourceTokens)} → ${formatTokenCount(props.summaryTokens)} tokens`;
   }
-  return "Context summary";
+  return text;
 });
 </script>
 
@@ -52,6 +53,7 @@ const label = computed(() => {
     role="separator"
     :aria-label="label"
     :data-status="status"
+    :title="status === 'completed' ? 'These earlier messages are sent to the model as a summary. The originals stay on your device.' : 'Summarizing earlier messages in the background…'"
   >
     <div class="line line-left" />
     <div class="marker-label">
@@ -69,13 +71,12 @@ const label = computed(() => {
   gap: 12px;
   width: 100%;
   max-width: 800px;
-  margin: 18px auto;
+  margin: 14px auto;
   padding: 0 12px;
   box-sizing: border-box;
   user-select: none;
   -webkit-user-select: none;
-  pointer-events: none;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-muted, #8b8b8b);
@@ -114,11 +115,6 @@ const label = computed(() => {
 
 .context-summary-marker.status-in_progress {
   color: var(--text-secondary, #555);
-}
-
-.context-summary-marker.status-stale {
-  color: var(--text-muted, #8b8b8b);
-  font-style: italic;
 }
 
 .context-summary-marker.status-completed {

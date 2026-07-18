@@ -17,6 +17,12 @@
         @regenerate-message="regenerateAssistantMessage"
         @navigate-branch="navigateBranch"
       />
+      <ContextCompressionChip
+        :conversation-id="currConvo"
+        :get-visible-messages="() => { const v = visibleMessages; return v && 'value' in v ? v.value : v; }"
+        :branch-path="branchPath"
+        :is-incognito="isIncognito"
+      />
       <MessageForm
         ref="messageFormRef"
         :is-loading="isLoading"
@@ -51,6 +57,7 @@ import { useConversation } from '~/composables/useConversation';
 import { useGlobalScrollStatus } from '~/composables/useGlobalScrollStatus';
 
 import ChatPanel from '~/components/ChatPanel.vue';
+import ContextCompressionChip from '~/components/ContextCompressionChip.vue';
 
 // Get the route and conversation ID
 const route = useRoute();

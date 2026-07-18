@@ -63,13 +63,13 @@ const SEARCH_TOOLS_AWARENESS = `### Web Search and Page Crawling
 *   Additionally, the web crawl tool can be used in interesting ways to provide extra information, such as reading PDFs or specific pages.`;
 
 const CONTEXT_COMPRESSION_AWARENESS = `### Context Compression
-Earlier portions of this conversation may have been compressed into labeled summaries. Each summary looks like:
+Earlier portions of this conversation may have been compressed into labeled summaries. Each compressed span is represented as:
 
-  --- Context summary: messages N–M ---
-  <text>
-  --- end summary ---
+  --- Earlier conversation summary (covers N messages) ---
+  <summary text>
+  --- End of summary ---
 
-Treat these summaries as the authoritative continuation of the conversation. The labels tell you which range of messages each one covers; later messages (which you will see in full) follow the most recent summary. If anything is ambiguous, prefer the most recent verbatim content over the summary.`;
+Treat these summaries as the authoritative continuation of the conversation. The labels tell you how many messages each one covers; later messages (which you will see in full) follow the most recent summary. If anything is ambiguous, prefer the most recent verbatim content over the summary.`;
 
 const NOTEPAD_AWARENESS = `### Notepad Awareness
 *   You maintain a private Notepad about the user — a working document that helps you remember them across conversations.

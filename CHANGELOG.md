@@ -13,6 +13,20 @@ All notable changes to Libre Assistant are documented here.
 
 ---
 
+## [1.5.0]
+
+### Added
+- Manual context compression added, allowing you to choose when to compress context
+
+### Changed
+- Context compression settings tab renamed to "Auto Context Compression" since you can now manually compress context
+- Changed default compression settings from 40,000 tokens for compression to 20,000, and 6,000 unchanged tokens left in context to 5,000.
+
+### Fixed
+- Context compression now works as intended
+
+---
+
 ## [1.4.0]
 
 ### Added

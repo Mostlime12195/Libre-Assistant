@@ -1,11 +1,11 @@
 /**
  * @file contextCompressor.test.js
- * @description Unit tests for the context compression core module:
- * sidecar I/O, chunk identification, token estimation, marker building,
- * and API-history transformation.
+ * @description Unit tests for the sidecar-based context compression core:
+ * settings resolution, token estimation, summary validity, range
+ * selection, history transformation, and sidecar normalization.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 const { store } = vi.hoisted(() => ({ store: new Map() }));
 
@@ -27,33 +27,28 @@ vi.mock('~/composables/useSession', () => ({
 }));
 
 import {
-  CONTEXT_SUMMARY_KEY_PREFIX,
-  DEFAULT_COMPRESSION_MODEL,
   loadContextSummary,
   saveContextSummary,
   deleteContextSummary,
-  hashBranchPath,
-  countUserTurns,
-  getContextSummaryMarkers,
-  identifyNextChunk,
+  resolveCompressionSettings,
   estimateMessageTokens,
   estimateChunkTokens,
-  buildInProgressMarker,
-  renderContextSummaryAsApiMessage,
-  transformHistoryForAPI,
-  callCompressionModel,
+  findValidSummaries,
+  buildApiHistory,
+  estimateEffectiveTokens,
+  selectCompressionRange,
+  shouldOfferCompression,
+  buildSummaryRecord,
+  renderSummaryAsApiMessage,
+  hashBranchPath,
+  DEFAULT_THRESHOLD_TOKENS,
+  DEFAULT_KEEP_RECENT_TOKENS,
+  MAX_RANGE_TOKENS,
 } from '../app/composables/contextCompressor.js';
 
-beforeEach(() => {
-  store.clear();
-  vi.clearAllMocks();
-  global.fetch = vi.fn();
-});
-
-afterEach(() => {
-  store.clear();
-  vi.restoreAllMocks();
-});
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function makeUser(id, content = '') {
   return { id, role: 'user', content, timestamp: new Date(), complete: true };
@@ -63,292 +58,411 @@ function makeAssistant(id, content = '') {
   return { id, role: 'assistant', content, timestamp: new Date(), complete: true };
 }
 
-function makeMarker(overrides = {}) {
+/** A message whose estimated token count is exactly `tokens`. */
+function msgOfTokens(id, role, tokens) {
+  const content = 'x'.repeat(tokens * 4);
+  return role === 'user' ? makeUser(id, content) : makeAssistant(id, content);
+}
+
+/** Builds n alternating messages (m0 user, m1 assistant, ...), 100 tokens each. */
+function makeConvo(n, tokensEach = 100) {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    out.push(msgOfTokens(`m${i}`, i % 2 === 0 ? 'user' : 'assistant', tokensEach));
+  }
+  return out;
+}
+
+function makeChunk(ids, overrides = {}) {
   return {
-    id: 'ctx_1',
-    role: 'context_summary',
-    parentId: null,
-    branchIndex: 0,
-    timestamp: new Date(),
-    rangeStart: 1,
-    rangeEnd: 2,
+    id: overrides.id || `ctx_${ids[0]}`,
+    anchorMessageId: ids[ids.length - 1],
+    sourceMessageIds: ids.slice(),
+    summaryText: 'compressed summary text',
     status: 'completed',
-    summaryText: 'summary',
     compressedAt: new Date().toISOString(),
-    compressedBy: DEFAULT_COMPRESSION_MODEL,
-    tokenEstimate: 100,
-    sourceMessageIds: [],
+    compressedBy: 'test-model',
+    sourceTokens: 100 * ids.length,
+    summaryTokens: 10,
+    branchPathHash: 'root',
     ...overrides,
   };
 }
 
-describe('hashBranchPath', () => {
-  it('returns "root" for empty paths', () => {
-    expect(hashBranchPath([])).toBe('root');
-    expect(hashBranchPath(null)).toBe('root');
+beforeEach(() => {
+  store.clear();
+});
+
+// ---------------------------------------------------------------------------
+// Settings resolution
+// ---------------------------------------------------------------------------
+
+describe('resolveCompressionSettings', () => {
+  it('returns defaults for empty settings', () => {
+    const s = resolveCompressionSettings({});
+    expect(s.enabled).toBe(true);
+    expect(s.model).toBe('deepseek/deepseek-v4-flash');
+    expect(s.thresholdTokens).toBe(DEFAULT_THRESHOLD_TOKENS);
+    expect(s.keepRecentTokens).toBe(DEFAULT_KEEP_RECENT_TOKENS);
   });
 
-  it('joins branch indices with dashes', () => {
-    expect(hashBranchPath([0, 1, 0])).toBe('0-1-0');
+  it('respects explicit values', () => {
+    const s = resolveCompressionSettings({
+      context_compression_enabled: false,
+      context_compression_model: '  custom/model  ',
+      context_compression_threshold_tokens: 20000,
+      context_compression_keep_recent_tokens: 3000,
+    });
+    expect(s.enabled).toBe(false);
+    expect(s.model).toBe('custom/model');
+    expect(s.thresholdTokens).toBe(20000);
+    expect(s.keepRecentTokens).toBe(3000);
+  });
+
+  it('falls back on invalid numbers', () => {
+    const s = resolveCompressionSettings({
+      context_compression_threshold_tokens: 100, // below minimum
+      context_compression_keep_recent_tokens: -5,
+    });
+    expect(s.thresholdTokens).toBe(DEFAULT_THRESHOLD_TOKENS);
+    expect(s.keepRecentTokens).toBe(DEFAULT_KEEP_RECENT_TOKENS);
   });
 });
 
-describe('countUserTurns', () => {
-  it('counts only user messages', () => {
-    const messages = [
-      makeUser('u1'),
-      makeAssistant('a1'),
-      makeUser('u2'),
-      makeUser('u3'),
-    ];
-    expect(countUserTurns(messages)).toBe(3);
-  });
-
-  it('ignores context_summary markers', () => {
-    const messages = [makeUser('u1'), makeMarker(), makeUser('u2')];
-    expect(countUserTurns(messages)).toBe(2);
-  });
-
-  it('handles non-arrays', () => {
-    expect(countUserTurns(null)).toBe(0);
-    expect(countUserTurns(undefined)).toBe(0);
-  });
-});
-
-describe('getContextSummaryMarkers', () => {
-  it('returns completed and in_progress markers, ignoring stale', () => {
-    const messages = [
-      makeMarker({ id: 'ctx_1', status: 'completed' }),
-      makeMarker({ id: 'ctx_2', status: 'in_progress' }),
-      makeMarker({ id: 'ctx_3', status: 'stale' }),
-    ];
-    const markers = getContextSummaryMarkers(messages);
-    expect(markers.map((m) => m.id)).toEqual(['ctx_1', 'ctx_2']);
-  });
-});
-
-describe('identifyNextChunk', () => {
-  it('identifies the first chunk of user turns', () => {
-    const messages = [
-      makeUser('u1'),
-      makeAssistant('a1'),
-      makeUser('u2'),
-      makeAssistant('a2'),
-      makeUser('u3'),
-    ];
-    const result = identifyNextChunk(messages, 2);
-    expect(result.rangeStart).toBe(1);
-    expect(result.rangeEnd).toBe(2);
-    expect(result.chunk.map((m) => m.id)).toEqual(['u1', 'a1', 'u2']);
-    expect(result.isClosed).toBe(true);
-  });
-
-  it('skips messages already covered by a completed marker', () => {
-    const messages = [
-      makeUser('u1'),
-      makeAssistant('a1'),
-      makeUser('u2'),
-      makeMarker({ id: 'ctx_1', rangeStart: 1, rangeEnd: 2, status: 'completed' }),
-      makeUser('u3'),
-      makeAssistant('a2'),
-      makeUser('u4'),
-      makeAssistant('a3'),
-      makeUser('u5'),
-    ];
-    const result = identifyNextChunk(messages, 2);
-    expect(result.rangeStart).toBe(3);
-    expect(result.rangeEnd).toBe(4);
-    expect(result.isClosed).toBe(true);
-  });
-
-  it('marks a chunk as not closed until the next user turn arrives', () => {
-    const messages = [
-      makeUser('u1'),
-      makeAssistant('a1'),
-      makeUser('u2'),
-      makeAssistant('a2'),
-    ];
-    const result = identifyNextChunk(messages, 2);
-    expect(result.rangeStart).toBe(1);
-    expect(result.rangeEnd).toBe(2);
-    expect(result.isClosed).toBe(false);
-  });
-
-  it('returns null when there are no user turns', () => {
-    const messages = [makeAssistant('a1'), makeAssistant('a2')];
-    expect(identifyNextChunk(messages, 2)).toBeNull();
-  });
-});
+// ---------------------------------------------------------------------------
+// Token estimation
+// ---------------------------------------------------------------------------
 
 describe('estimateMessageTokens', () => {
-  it('estimates from string content', () => {
-    const msg = makeUser('u1', 'a'.repeat(400));
-    expect(estimateMessageTokens(msg)).toBe(100);
+  it('estimates plain content', () => {
+    expect(estimateMessageTokens(makeUser('u', 'x'.repeat(400)))).toBe(100);
   });
 
-  it('includes reasoning at half weight', () => {
-    const msg = { ...makeAssistant('a1', ''), reasoning: 'a'.repeat(400) };
-    expect(estimateMessageTokens(msg)).toBe(50);
-  });
-
-  it('counts parts content', () => {
+  it('counts content parts and half-weight reasoning', () => {
     const msg = {
-      ...makeAssistant('a1'),
+      id: 'a',
+      role: 'assistant',
       parts: [
-        { type: 'content', content: 'a'.repeat(400) },
-        { type: 'reasoning', content: 'b'.repeat(400) },
+        { type: 'content', content: 'x'.repeat(400) },
+        { type: 'reasoning', content: 'y'.repeat(400) },
       ],
     };
     expect(estimateMessageTokens(msg)).toBe(150);
   });
 
-  it('returns at least 1 token', () => {
-    expect(estimateMessageTokens({})).toBe(1);
+  it('counts tool results at full weight', () => {
+    const msg = {
+      id: 'a',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'tool_group',
+          tools: [
+            { function: { arguments: 'x'.repeat(40) }, result: 'y'.repeat(360) },
+          ],
+        },
+      ],
+    };
+    expect(estimateMessageTokens(msg)).toBe(100);
+  });
+
+  it('never returns zero for a message', () => {
+    expect(estimateMessageTokens(makeUser('u', ''))).toBe(1);
+    expect(estimateMessageTokens(null)).toBe(0);
   });
 });
 
 describe('estimateChunkTokens', () => {
-  it('sums token estimates for all messages', () => {
-    const messages = [
-      makeUser('u1', 'a'.repeat(400)),
-      makeAssistant('a1', 'b'.repeat(400)),
-    ];
-    expect(estimateChunkTokens(messages)).toBe(200);
+  it('sums message estimates', () => {
+    const convo = makeConvo(5);
+    expect(estimateChunkTokens(convo)).toBe(500);
   });
 });
 
-describe('buildInProgressMarker', () => {
-  it('returns a context_summary marker with default values', () => {
-    const marker = buildInProgressMarker({
-      rangeStart: 1,
-      rangeEnd: 10,
-      parentId: 'parent',
-      tokenEstimate: 500,
-    });
-    expect(marker.role).toBe('context_summary');
-    expect(marker.status).toBe('in_progress');
-    expect(marker.rangeStart).toBe(1);
-    expect(marker.rangeEnd).toBe(10);
-    expect(marker.parentId).toBe('parent');
-    expect(marker.compressedBy).toBe(DEFAULT_COMPRESSION_MODEL);
-    expect(marker.summaryText).toBeNull();
-  });
-});
-
-describe('renderContextSummaryAsApiMessage', () => {
-  it('renders a completed marker as a labeled user message', () => {
-    const marker = makeMarker({ rangeStart: 1, rangeEnd: 10, summaryText: 'A short summary.' });
-    const rendered = renderContextSummaryAsApiMessage(marker);
-    expect(rendered.role).toBe('user');
-    expect(rendered.content).toContain('Context summary: messages 1–10');
-    expect(rendered.content).toContain('A short summary.');
-    expect(rendered.content).toContain('--- end summary ---');
-  });
-
-  it('returns null for non-completed markers', () => {
-    const marker = makeMarker({ status: 'in_progress' });
-    expect(renderContextSummaryAsApiMessage(marker)).toBeNull();
-  });
-});
-
-describe('transformHistoryForAPI', () => {
-  it('replaces covered messages with a single summary message', () => {
-    const u1 = makeUser('u1', 'hello');
-    const a1 = makeAssistant('a1', 'hi');
-    const marker = makeMarker({
-      id: 'ctx_1',
-      rangeStart: 1,
-      rangeEnd: 1,
-      status: 'completed',
-      summaryText: 'User said hello.',
-      sourceMessageIds: ['u1', 'a1'],
-    });
-    const u2 = makeUser('u2', 'world');
-    const a2 = makeAssistant('a2', 'earth');
-
-    const result = transformHistoryForAPI([u1, a1, marker, u2, a2]);
-    expect(result.length).toBe(4);
-    expect(result[0].role).toBe('user');
-    expect(result[0].content).toContain('User said hello.');
-    expect(result[1].role).toBe('assistant');
-    expect(result[2]).toEqual(u2);
-    expect(result[3]).toEqual(a2);
-  });
-
-  it('keeps messages verbatim when there are no completed markers', () => {
-    const messages = [makeUser('u1'), makeAssistant('a1')];
-    const result = transformHistoryForAPI(messages);
-    expect(result).toEqual(messages);
-  });
-
-  it('drops in-progress markers', () => {
-    const marker = makeMarker({ status: 'in_progress', summaryText: null });
-    const messages = [makeUser('u1'), marker, makeUser('u2')];
-    const result = transformHistoryForAPI(messages);
-    expect(result.map((m) => m.role)).toEqual(['user', 'user']);
-  });
-});
+// ---------------------------------------------------------------------------
+// Sidecar I/O
+// ---------------------------------------------------------------------------
 
 describe('sidecar I/O', () => {
-  it('loads an empty sidecar when none exists', async () => {
-    const sidecar = await loadContextSummary('conv-1');
-    expect(sidecar.conversationId).toBe('conv-1');
-    expect(sidecar.chunks).toEqual([]);
+  it('round-trips chunk records', async () => {
+    const chunk = makeChunk(['m0', 'm1']);
+    await saveContextSummary('c1', { chunks: [chunk] });
+    const record = await loadContextSummary('c1');
+    expect(record.chunks).toHaveLength(1);
+    expect(record.chunks[0].anchorMessageId).toBe('m1');
   });
 
-  it('saves and loads a sidecar record', async () => {
-    await saveContextSummary('conv-1', { chunks: [{ rangeStart: 1, rangeEnd: 2 }] });
-    const sidecar = await loadContextSummary('conv-1');
-    expect(sidecar.chunks).toHaveLength(1);
-    expect(sidecar.chunks[0].rangeStart).toBe(1);
+  it('discards legacy and malformed records on load', async () => {
+    store.set('context_summary_c2', {
+      chunks: [
+        { rangeStart: 1, rangeEnd: 10, status: 'completed', summaryText: 'old' }, // legacy
+        { garbage: true },
+        makeChunk(['m0']),
+      ],
+    });
+    const record = await loadContextSummary('c2');
+    expect(record.chunks).toHaveLength(1);
+    expect(record.chunks[0].anchorMessageId).toBe('m0');
   });
 
-  it('deletes a sidecar record', async () => {
-    await saveContextSummary('conv-1', { chunks: [] });
-    expect(store.has(`${CONTEXT_SUMMARY_KEY_PREFIX}conv-1`)).toBe(true);
-    await deleteContextSummary('conv-1');
-    expect(store.has(`${CONTEXT_SUMMARY_KEY_PREFIX}conv-1`)).toBe(false);
+  it('returns an empty record for unknown conversations', async () => {
+    const record = await loadContextSummary('nope');
+    expect(record.chunks).toEqual([]);
+  });
+
+  it('deletes the sidecar', async () => {
+    await saveContextSummary('c3', { chunks: [makeChunk(['m0'])] });
+    await deleteContextSummary('c3');
+    const record = await loadContextSummary('c3');
+    expect(record.chunks).toEqual([]);
   });
 });
 
-describe('callCompressionModel', () => {
-  it('returns summary text on a successful API response', async () => {
-    global.fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        choices: [{ message: { content: '  Summary text  ' } }],
-      }),
-    });
+// ---------------------------------------------------------------------------
+// findValidSummaries
+// ---------------------------------------------------------------------------
 
-    const chunk = [makeUser('u1', 'hello')];
-    const result = await callCompressionModel(chunk, {
-      apiKey: 'key',
-      model: 'model',
-      rangeStart: 1,
-      rangeEnd: 1,
-    });
-
-    expect(result).toBe('Summary text');
-    expect(global.fetch).toHaveBeenCalledTimes(1);
-    const body = JSON.parse(global.fetch.mock.calls[0][1].body);
-    expect(body.model).toBe('model');
-    expect(body.customApiKey).toBe('key');
+describe('findValidSummaries', () => {
+  it('validates a summary whose span matches contiguously', () => {
+    const convo = makeConvo(6);
+    const chunk = makeChunk(['m0', 'm1', 'm2', 'm3']);
+    const valid = findValidSummaries(convo, [chunk]);
+    expect(valid).toHaveLength(1);
+    expect(valid[0].startIndex).toBe(0);
+    expect(valid[0].endIndex).toBe(3);
   });
 
-  it('returns null when the API request fails', async () => {
-    global.fetch.mockResolvedValueOnce({ ok: false, status: 500 });
-    const chunk = [makeUser('u1', 'hello')];
-    const result = await callCompressionModel(chunk, {
-      apiKey: 'key',
-      rangeStart: 1,
-      rangeEnd: 1,
-    });
-    expect(result).toBeNull();
+  it('invalidates a summary when a covered message was edited (id changed)', () => {
+    const convo = makeConvo(6);
+    const chunk = makeChunk(['m0', 'm1', 'm2', 'm3']);
+    const edited = convo.map((m) =>
+      m.id === 'm2' ? { ...m, id: 'm2-edited' } : m,
+    );
+    expect(findValidSummaries(edited, [chunk])).toHaveLength(0);
   });
 
-  it('returns null for empty chunks', async () => {
-    const result = await callCompressionModel([], { apiKey: 'key' });
-    expect(result).toBeNull();
-    expect(global.fetch).not.toHaveBeenCalled();
+  it('keeps later summaries valid when an earlier one is invalidated', () => {
+    const convo = makeConvo(6);
+    const first = makeChunk(['m0', 'm1']);
+    const second = makeChunk(['m2', 'm3']);
+    const edited = convo.map((m) =>
+      m.id === 'm0' ? { ...m, id: 'm0-edited' } : m,
+    );
+    const valid = findValidSummaries(edited, [first, second]);
+    expect(valid).toHaveLength(1);
+    expect(valid[0].id).toBe(second.id);
+  });
+
+  it('keeps summaries valid on branches that share the covered prefix', () => {
+    const convo = makeConvo(4);
+    const chunk = makeChunk(['m0', 'm1']);
+    const branch = [convo[0], convo[1], makeUser('uX', 'other'), makeAssistant('aX', 'other')];
+    const valid = findValidSummaries(branch, [chunk]);
+    expect(valid).toHaveLength(1);
+  });
+
+  it('skips failed and legacy records', () => {
+    const convo = makeConvo(4);
+    const failed = makeChunk(['m0', 'm1'], { status: 'failed', summaryText: null });
+    const legacy = { rangeStart: 1, rangeEnd: 2, status: 'completed', summaryText: 'x' };
+    expect(findValidSummaries(convo, [failed, legacy])).toHaveLength(0);
+  });
+
+  it('matches sequential summaries in order', () => {
+    const convo = makeConvo(8);
+    const s1 = makeChunk(['m0', 'm1']);
+    const s2 = makeChunk(['m2', 'm3']);
+    const valid = findValidSummaries(convo, [s1, s2]);
+    expect(valid).toHaveLength(2);
+    expect(valid[1].startIndex).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildApiHistory
+// ---------------------------------------------------------------------------
+
+describe('buildApiHistory', () => {
+  it('replaces a covered span with summary + acknowledgement', () => {
+    const convo = makeConvo(6);
+    const valid = findValidSummaries(convo, [makeChunk(['m0', 'm1', 'm2', 'm3'])]);
+    const out = buildApiHistory(convo, valid);
+
+    expect(out).toHaveLength(4);
+    expect(out[0].role).toBe('user');
+    expect(out[0].content).toContain('Earlier conversation summary');
+    expect(out[0].content).toContain('compressed summary text');
+    expect(out[1].role).toBe('assistant');
+    expect(out[2]).toBe(convo[4]);
+    expect(out[3]).toBe(convo[5]);
+  });
+
+  it('supports multiple summaries', () => {
+    const convo = makeConvo(6);
+    const valid = findValidSummaries(convo, [
+      makeChunk(['m0', 'm1']),
+      makeChunk(['m2', 'm3']),
+    ]);
+    const out = buildApiHistory(convo, valid);
+    expect(out).toHaveLength(6);
+    expect(out[0].content).toContain('summary');
+    expect(out[2].content).toContain('summary');
+    expect(out[4]).toBe(convo[4]);
+  });
+
+  it('never leaks a summary into a branch sharing only part of its span', () => {
+    const convo = makeConvo(4);
+    const chunk = makeChunk(['m0', 'm1', 'm2', 'm3']);
+    const branch = [convo[0], convo[1], makeUser('uX', 'x'), makeAssistant('aX', 'x')];
+    const out = buildApiHistory(branch, [chunk]);
+    expect(out).toHaveLength(4);
+    expect(out.every((m) => !String(m.content).includes('compressed summary text'))).toBe(true);
+  });
+
+  it('returns a verbatim copy when there are no summaries', () => {
+    const convo = makeConvo(3);
+    const out = buildApiHistory(convo, []);
+    expect(out).toEqual(convo);
+    expect(out).not.toBe(convo);
+  });
+});
+
+describe('estimateEffectiveTokens', () => {
+  it('counts summaries instead of covered messages', () => {
+    const convo = makeConvo(6); // 600 tokens verbatim
+    const valid = findValidSummaries(convo, [makeChunk(['m0', 'm1', 'm2', 'm3'])]);
+    const effective = estimateEffectiveTokens(convo, valid);
+    expect(effective).toBeLessThan(600);
+    expect(effective).toBeGreaterThan(150); // tail (200) minus… summary + ack + tail
+  });
+});
+
+// ---------------------------------------------------------------------------
+// selectCompressionRange
+// ---------------------------------------------------------------------------
+
+describe('selectCompressionRange', () => {
+  it('compresses everything eligible outside the keep-recent window', () => {
+    const convo = makeConvo(10); // 100 tokens each
+    const range = selectCompressionRange(convo, [], { keepRecentTokens: 200 });
+    // Tail: m9 + m8 (200 tokens). Eligible: m0..m7.
+    expect(range.sourceMessageIds).toEqual(convo.slice(0, 8).map((m) => m.id));
+    expect(range.anchorMessageId).toBe('m7');
+    expect(range.tokenEstimate).toBe(800);
+  });
+
+  it('starts after the last valid summary', () => {
+    const convo = makeConvo(10);
+    const valid = findValidSummaries(convo, [makeChunk(['m0', 'm1', 'm2', 'm3'])]);
+    const range = selectCompressionRange(convo, valid, { keepRecentTokens: 200 });
+    expect(range.sourceMessageIds[0]).toBe('m4');
+    expect(range.anchorMessageId).toBe('m7');
+  });
+
+  it('returns null when everything fits in the keep-recent window', () => {
+    const convo = makeConvo(2);
+    expect(
+      selectCompressionRange(convo, [], { keepRecentTokens: 500 }),
+    ).toBeNull();
+  });
+
+  it('sizes the range to the auto target', () => {
+    const convo = makeConvo(10);
+    const range = selectCompressionRange(convo, [], {
+      keepRecentTokens: 200,
+      targetTokens: 250,
+    });
+    expect(range.sourceMessageIds).toEqual(['m0', 'm1']);
+    expect(range.tokenEstimate).toBe(200);
+  });
+
+  it('pulls in the assistant reply instead of splitting a turn', () => {
+    const convo = makeConvo(10);
+    const range = selectCompressionRange(convo, [], {
+      keepRecentTokens: 200,
+      targetTokens: 350,
+    });
+    // 300 tokens lands on m2 (user); the reply m3 is pulled in.
+    expect(range.sourceMessageIds).toEqual(['m0', 'm1', 'm2', 'm3']);
+    expect(range.tokenEstimate).toBe(400);
+  });
+
+  it('caps the range at maxRangeTokens', () => {
+    const convo = makeConvo(10);
+    const range = selectCompressionRange(convo, [], {
+      keepRecentTokens: 200,
+      maxRangeTokens: 300,
+    });
+    expect(range.tokenEstimate).toBeLessThanOrEqual(300);
+    expect(range.sourceMessageIds).toEqual(['m0', 'm1', 'm2']);
+  });
+
+  it('still makes progress when a single message exceeds the cap', () => {
+    const huge = msgOfTokens('big', 'user', MAX_RANGE_TOKENS + 10000);
+    const tail = msgOfTokens('tail', 'assistant', 50);
+    const range = selectCompressionRange([huge, tail], [], {
+      keepRecentTokens: 100,
+    });
+    expect(range).not.toBeNull();
+    expect(range.sourceMessageIds).toEqual(['big']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// shouldOfferCompression
+// ---------------------------------------------------------------------------
+
+describe('shouldOfferCompression', () => {
+  it('is true only above threshold with an eligible range', () => {
+    expect(
+      shouldOfferCompression({ effectiveTokens: 5000, thresholdTokens: 4000, hasEligibleRange: true }),
+    ).toBe(true);
+    expect(
+      shouldOfferCompression({ effectiveTokens: 4000, thresholdTokens: 4000, hasEligibleRange: true }),
+    ).toBe(false);
+    expect(
+      shouldOfferCompression({ effectiveTokens: 9000, thresholdTokens: 4000, hasEligibleRange: false }),
+    ).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Records & rendering
+// ---------------------------------------------------------------------------
+
+describe('buildSummaryRecord', () => {
+  it('captures coverage and token estimates', () => {
+    const range = {
+      anchorMessageId: 'm3',
+      sourceMessageIds: ['m0', 'm1', 'm2', 'm3'],
+      tokenEstimate: 400,
+    };
+    const record = buildSummaryRecord({
+      range,
+      summaryText: 'x'.repeat(40),
+      model: 'test-model',
+      branchPathHash: 'root',
+    });
+    expect(record.status).toBe('completed');
+    expect(record.anchorMessageId).toBe('m3');
+    expect(record.sourceMessageIds).toHaveLength(4);
+    expect(record.sourceTokens).toBe(400);
+    expect(record.summaryTokens).toBe(10);
+  });
+});
+
+describe('renderSummaryAsApiMessage', () => {
+  it('labels the summary with its coverage', () => {
+    const rendered = renderSummaryAsApiMessage(makeChunk(['m0', 'm1', 'm2']));
+    expect(rendered.role).toBe('user');
+    expect(rendered.content).toContain('covers 3 messages');
+    expect(rendered.content).toContain('compressed summary text');
+  });
+});
+
+describe('hashBranchPath', () => {
+  it('is stable and branch-sensitive', () => {
+    expect(hashBranchPath([])).toBe('root');
+    expect(hashBranchPath([0, 1])).toBe('0-1');
   });
 });
