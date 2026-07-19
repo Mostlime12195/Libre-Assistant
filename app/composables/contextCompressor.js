@@ -760,9 +760,6 @@ export async function callCompressionModel(chunk, options) {
           { role: "user", content: userContent },
         ],
         stream: false,
-        reasoning: {
-          enabled: true,
-        },
         ...(apiKey ? { customApiKey: apiKey } : {}),
       }),
       ...(signal ? { signal } : {}),
