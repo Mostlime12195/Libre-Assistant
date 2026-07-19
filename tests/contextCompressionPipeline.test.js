@@ -13,8 +13,11 @@ vi.mock('localforage', () => ({
   default: {
     getItem: vi.fn(async (key) => (store.has(key) ? store.get(key) : null)),
     setItem: vi.fn(async (key, value) => {
-      store.set(key, value);
-      return value;
+      // Mirror IndexedDB's structuredClone behavior so reactive proxies cannot
+      // leak into the sidecar.
+      const cloned = structuredClone(value);
+      store.set(key, cloned);
+      return cloned;
     }),
     removeItem: vi.fn(async (key) => {
       store.delete(key);

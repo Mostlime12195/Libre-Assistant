@@ -525,8 +525,15 @@ async function handleDrop(event) {
 
 // If text form isn't focused and / is pressed, focus text form
 // We don't use whenever here to prevent the default action
+function isTextInputFocused() {
+  const active = document.activeElement;
+  if (!active) return false;
+  const tag = active.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || active.isContentEditable;
+}
+
 onKeyStroke("/", (e) => {
-  if (!isFocused.value) {
+  if (!isFocused.value && !isTextInputFocused()) {
     e.preventDefault();
     textareaRef.value.focus();
   }

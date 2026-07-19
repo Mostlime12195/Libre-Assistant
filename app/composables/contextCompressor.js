@@ -24,6 +24,7 @@
  */
 
 import localforage from "localforage";
+import { toRaw } from "vue";
 import { getSessionToken } from "~/composables/useSession";
 
 // ---------------------------------------------------------------------------
@@ -33,25 +34,50 @@ import { getSessionToken } from "~/composables/useSession";
 export const CONTEXT_SUMMARY_KEY_PREFIX = "context_summary_";
 
 /** Cheap, large-context model used for compression by default. */
-export const DEFAULT_COMPRESSION_MODEL = "deepseek/deepseek-v4-flash";
+export const DEFAULT_COMPRESSION_MODEL = "deepseek/deepseek-v4-pro";
 
 /** Effective-token count at which compression is offered / auto-runs. */
-export const DEFAULT_THRESHOLD_TOKENS = 25000;
+export const DEFAULT_THRESHOLD_TOKENS = 40_000;
 
 /** How many tokens of the most recent conversation always stay verbatim. */
-export const DEFAULT_KEEP_RECENT_TOKENS = 5000;
+export const DEFAULT_KEEP_RECENT_TOKENS = 8_000;
 
 /** Upper bound on the source tokens compressed in a single model call. */
-export const MAX_RANGE_TOKENS = 10000;
+export const MAX_RANGE_TOKENS = 10_000;
 
 /** How many characters of a single message to feed the summarizer. */
-export const MAX_MESSAGE_CHARS = 8000;
+export const MAX_MESSAGE_CHARS = 8_000;
 
 /** Soft cap on the summary text length. */
-export const MAX_SUMMARY_CHARS = 50000;
+export const MAX_SUMMARY_CHARS = 50_000;
 
 /** Rough chars-per-token heuristic used for estimation. */
 export const CHARS_PER_TOKEN = 4;
+
+// ---------------------------------------------------------------------------
+// Reactive-value normalization
+// ---------------------------------------------------------------------------
+
+/**
+ * Recursively strips Vue reactivity proxies from a value. LocalForage/IndexedDB
+ * uses structuredClone for persistence, which cannot clone Proxy objects; if
+ * reactive arrays or objects leak into the sidecar, only the first write would
+ * succeed and subsequent chunks would silently fail to persist.
+ *
+ * @param {*} value
+ * @returns {*}
+ */
+function deepToRaw(value) {
+  if (value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map(deepToRaw);
+  const raw = toRaw(value);
+  if (raw === null || typeof raw !== "object") return raw;
+  const result = {};
+  for (const key of Object.keys(raw)) {
+    result[key] = deepToRaw(raw[key]);
+  }
+  return result;
+}
 
 // ---------------------------------------------------------------------------
 // Sidecar I/O
@@ -117,7 +143,7 @@ export async function loadContextSummary(conversationId) {
 export async function saveContextSummary(conversationId, record) {
   try {
     await localforage.setItem(`${CONTEXT_SUMMARY_KEY_PREFIX}${conversationId}`, {
-      ...record,
+      ...deepToRaw(record),
       conversationId,
       lastUpdated: new Date().toISOString(),
     });

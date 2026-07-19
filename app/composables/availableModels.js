@@ -700,6 +700,15 @@ export const availableModels = [
           }
         },
       },
+      {
+        id: "openai/gpt-3.5-turbo-0613",
+        name: "GPT-3.5 Turbo 0613",
+        description: "Old and useless model, but here if you want a blast from the past!",
+        tool_use: false,
+        reasoning: {
+          supported: false,
+        },
+      },
     ],
   },
   {

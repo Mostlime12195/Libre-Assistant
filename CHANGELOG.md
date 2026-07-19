@@ -13,6 +13,17 @@ All notable changes to Libre Assistant are documented here.
 
 ---
 
+### [1.6.1] - 2026-07-19
+
+### Changed
+- Default context compression model is now DeepSeek V4 Pro, for its quality.
+
+### Fixed
+- Manual context compression can now correctly create and store several compressed summaries at once.
+- Pressing the '/' key when focused on a text box other than the main chat form now correctly types '/' instead of shifting focus to the chat form.
+- The prompt editing form is redesigned better UX and more dynamic resizing, allowing it to fit nicely on most screens based on the content.
+- Long text now properly wraps in user message bubbles, preventing a horizontal scrollbar from appearing.
+
 ## [1.6.0] - 2026-07-18
 
 ### Added
