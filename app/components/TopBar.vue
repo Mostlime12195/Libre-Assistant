@@ -4,7 +4,7 @@
       <button v-if="!sidebarOpen" class="sidebar-toggle" @click="toggleSidebar" aria-label="Toggle sidebar">
         <Icon icon="material-symbols:side-navigation" width="24" height="24" />
       </button>
-      <button v-if="!sidebarOpen" class="new-chat-btn" @click="handleNewChat" aria-label="New chat">
+      <button v-if="!sidebarOpen" class="new-chat-btn" @click="handleNewChat" @auxclick="handleMiddleClickNewChat" aria-label="New chat">
         <Icon icon="material-symbols:add-box-outline" width="24" height="24" />
       </button>
       <div class="model-selector-container">
@@ -170,6 +170,13 @@ const router = useRouter();
 
 const handleNewChat = () => {
   router.push('/');
+};
+
+const handleMiddleClickNewChat = (e) => {
+  if (e.button === 1) {
+    e.preventDefault();
+    window.open('/', '_blank');
+  }
 };
 
 // Computed property to check if we're on the incognito route
